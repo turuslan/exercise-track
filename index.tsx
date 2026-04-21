@@ -182,7 +182,12 @@ function App() {
     <Box flexDirection="column">
       <Box>
         <Text>
-          {`${mmdd(now)} ${hhmm(now)}, ${state.count}/${state.target}`}
+          {`${mmdd(now)} ${hhmm(now)}, ${state.count}/${state.target} `}
+        </Text>
+        <Text>
+          {`[${"#".repeat(state.count)}${
+            ".".repeat(Math.max(0, state.target - state.count))
+          }]`}
         </Text>
         {state.last && <Text>, {time_scale.ago(state.last, new Date())}</Text>}
       </Box>
