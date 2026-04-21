@@ -1,6 +1,7 @@
 import * as React from "npm:react";
 
 import {
+  addDays,
   addMinutes,
   addSeconds,
   differenceInMilliseconds,
@@ -37,12 +38,16 @@ const TARGET = 10;
 
 interface TimeScale {
   getGroup(time: Date): Date;
+  nextGroup(time: Date): Date;
   nextTick(time: Date): Date;
   ago(time1: Date, time2: Date): string;
 }
 const time_scale_debug: TimeScale = {
   getGroup(time) {
     return startOfMinute(time);
+  },
+  nextGroup(time) {
+    return addMinutes(this.getGroup(time), 1);
   },
   nextTick(time) {
     return addSeconds(startOfSecond(time), 1);
@@ -54,6 +59,9 @@ const time_scale_debug: TimeScale = {
 const time_scale_real: TimeScale = {
   getGroup(time) {
     return startOfDay(time);
+  },
+  nextGroup(time) {
+    return addDays(this.getGroup(time), 1);
   },
   nextTick(time) {
     return addMinutes(startOfMinute(time), 1);
@@ -86,6 +94,12 @@ const db_insert_time = db.prepare(`
 `);
 const db_select_time = db.prepare(`
   SELECT time_ms FROM time
+  ORDER BY time_ms
+`);
+const db_select_time_range = db.prepare(`
+  SELECT time_ms FROM time
+  WHERE ? <= time_ms AND time_ms <= ?
+  ORDER BY time_ms
 `);
 
 function App() {
@@ -124,9 +138,11 @@ function App() {
     () => {
       const now = new Date();
       const day = time_scale.getGroup(now);
-      const times = db_select_time.all()
-        .map((row) => new Date(row.time_ms as number))
-        .sort(cmp);
+      const times = db_select_time_range.all(
+        time_scale.getGroup(day).getTime(),
+        time_scale.nextGroup(day).getTime(),
+      )
+        .map((row) => new Date(row.time_ms as number));
       const day_times = times
         .filter((time) => dateEq(time_scale.getGroup(time), day));
       return {
