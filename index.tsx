@@ -28,6 +28,9 @@ function pad02(n: number) {
 function hhmm(time: Date) {
   return `${pad02(time.getHours())}:${pad02(time.getMinutes())}`;
 }
+function mmdd(time: Date) {
+  return `${pad02(time.getMonth() + 1)}.${pad02(time.getDate())}`;
+}
 
 function cmp<T>(l: T, r: T) {
   return l < r ? -1 : l > r ? +1 : 0;
@@ -179,7 +182,7 @@ function App() {
     <Box flexDirection="column">
       <Box>
         <Text>
-          {`${hhmm(now)}, today ${state.count}/${state.target}`}
+          {`${mmdd(now)} ${hhmm(now)}, ${state.count}/${state.target}`}
         </Text>
         {state.last && <Text>, {time_scale.ago(state.last, new Date())}</Text>}
       </Box>
