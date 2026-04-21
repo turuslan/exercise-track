@@ -6,7 +6,6 @@ import {
   differenceInMilliseconds,
   differenceInMinutes,
   differenceInSeconds,
-  isBefore as dateBefore,
   isEqual as dateEq,
   startOfDay,
   startOfMinute,
@@ -72,33 +71,6 @@ interface State {
   count: number;
   target: number;
   last: Date | null;
-  history: { day: Date; times: Date[] }[];
-}
-
-function historyItemClone(item: State["history"][0]): State["history"][0] {
-  return { ...item, times: [...item.times] };
-}
-function historyAdd(
-  history: State["history"],
-  times: Date[],
-): State["history"] {
-  const old_history = history;
-  history = [...history];
-  for (const time of times) {
-    const day = time_scale.getGroup(time);
-    let last = arrayLast(history);
-    if (last !== null && dateBefore(day, last.day)) throw new Error();
-    if (last === null || !dateEq(day, last.day)) {
-      last = { day, times: [] };
-      history.push(last);
-    } else if (old_history.includes(last)) {
-      last = historyItemClone(last);
-      history.pop();
-      history.push(last);
-    }
-    last.times.push(time);
-  }
-  return history;
 }
 
 type ReducerArg = "key" | "timer";
@@ -132,7 +104,6 @@ function App() {
           ...state,
           count: state.count + 1,
           last: now,
-          history: historyAdd(state.history, [now]),
         };
       }
       if (arg === "timer") {
@@ -163,7 +134,6 @@ function App() {
         count: day_times.length,
         target: TARGET,
         last: arrayLast(day_times),
-        history: historyAdd([], times),
       };
     },
   );
@@ -197,18 +167,6 @@ function App() {
         </Text>
         {state.last && <Text>, {time_scale.ago(state.last, new Date())}</Text>}
       </Box>
-      {state.history.map((day) => (
-        <Box key={day.day.getTime()}>
-          <Text>
-            {pad02(day.day.getMonth() + 1)}.{pad02(day.day.getDate())} -
-          </Text>
-          {day.times.map((time) => (
-            <Text key={time.getTime()}>
-              {` ${hhmm(time)}`}
-            </Text>
-          ))}
-        </Box>
-      ))}
     </Box>
   );
 }
