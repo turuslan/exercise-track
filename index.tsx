@@ -109,6 +109,15 @@ function App() {
   const [state, dispatch] = useReducer<State, null, [ReducerArg]>(
     (state, arg) => {
       const now = new Date();
+      if (!dateEq(state.day, time_scale.getGroup(now))) {
+        state = {
+          ...state,
+          day: time_scale.getGroup(now),
+          count: 0,
+          target: TARGET,
+          last: null,
+        };
+      }
       if (arg === "key") {
         if (
           state.last !== null &&
@@ -124,15 +133,6 @@ function App() {
         };
       }
       if (arg === "timer") {
-        if (!dateEq(state.day, time_scale.getGroup(now))) {
-          return {
-            ...state,
-            day: time_scale.getGroup(now),
-            count: 0,
-            target: TARGET,
-            last: null,
-          };
-        }
         return { ...state };
       }
       throw new Error();
