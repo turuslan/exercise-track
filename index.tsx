@@ -194,9 +194,9 @@ function App() {
           {`${mmdd(now)} ${hhmm(now)}, ${state.count}/${state.target} `}
         </Text>
         <Text>
-          {`[${"#".repeat(state.count)}${
+          {`[${"#".repeat(Math.min(state.count, state.target))}${
             ".".repeat(Math.max(0, state.target - state.count))
-          }]`}
+          }${"+".repeat(Math.max(0, state.count - state.target))}]`}
         </Text>
         {state.last && <Text>, {time_scale.ago(state.last, new Date())}</Text>}
       </Box>
