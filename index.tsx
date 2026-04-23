@@ -17,6 +17,9 @@ import { Box, render, Text, useInput } from "npm:ink";
 import { useEffect, useReducer, useRef } from "npm:react";
 import { DatabaseSync } from "node:sqlite";
 
+function roundUp(x: number, y: number) {
+  return x - x % y + y;
+}
 function arrayLast<T>(xs: T[]) {
   return xs[xs.length - 1] ?? null;
 }
@@ -67,6 +70,12 @@ const time_scale_real: TimeScale = {
     return addDays(this.getGroup(time), 1);
   },
   nextTick(time) {
+    // timers seem to freeze when computer sleeps
+    if (true) {
+      const minute = startOfMinute(time);
+      const seconds = differenceInSeconds(time, minute);
+      return addSeconds(minute, roundUp(seconds, 5));
+    }
     return addMinutes(startOfMinute(time), 1);
   },
   ago(time1, time2) {
