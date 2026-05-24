@@ -114,6 +114,11 @@ const db_select_time_range = db.prepare(`
   ORDER BY time_ms
 `);
 
+function dbSelectTimeRange(min: Date, max: Date) {
+  return db_select_time_range.all(min.getTime(), max.getTime())
+    .map((row) => new Date(row.time_ms as number));
+}
+
 function App() {
   const [state, dispatch] = useReducer<State, null, [ReducerArg]>(
     (state, arg) => {
@@ -150,11 +155,10 @@ function App() {
     () => {
       const now = new Date();
       const day = time_scale.getGroup(now);
-      const times = db_select_time_range.all(
-        time_scale.getGroup(day).getTime(),
-        time_scale.nextGroup(day).getTime(),
-      )
-        .map((row) => new Date(row.time_ms as number));
+      const times = dbSelectTimeRange(
+        time_scale.getGroup(day),
+        time_scale.nextGroup(day),
+      );
       const day_times = times
         .filter((time) => dateEq(time_scale.getGroup(time), day));
       return {
@@ -205,3 +209,13 @@ function App() {
 }
 
 render(<App />);
+
+await Deno.serve({ port: 8087, onListen() {} }, async (req) => {
+  const url = new URL(req.url);
+  if (url.pathname === "/api/list") {
+    const times = dbSelectTimeRange(new Date(0), new Date())
+      .map((x) => x.getTime());
+    return Response.json({ times });
+  }
+  return new Response(null, { status: 404 });
+});
