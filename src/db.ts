@@ -1,25 +1,40 @@
-import { DatabaseSync } from "node:sqlite";
+import * as TypeOrm from "typeorm";
+import * as Url from "node:url";
 
-const db = new DatabaseSync("exercise.db");
-db.exec(`
-  CREATE TABLE IF NOT EXISTS time (
-    time_ms INTEGER UNIQUE
-  );
-`);
-const db_insert_time = db.prepare(`
-  INSERT INTO time (time_ms) VALUES (?)
-`);
-const db_select_time_range = db.prepare(`
-  SELECT time_ms FROM time
-  WHERE ? <= time_ms AND time_ms <= ?
-  ORDER BY time_ms
-`);
+const db_path = Url.fileURLToPath(
+  Url.resolve(import.meta.url, "../exercise.db"),
+);
 
-export function dbInsertTime(time: Date) {
-  db_insert_time.run(time.getTime());
+@TypeOrm.Entity()
+class DbTime {
+  @TypeOrm.PrimaryColumn("integer")
+  time_ms: number = undefined!;
 }
 
-export function dbSelectTimeRange(min: Date, max: Date) {
-  return db_select_time_range.all(min.getTime(), max.getTime())
-    .map((row) => new Date(row.time_ms as number));
+const db = new TypeOrm.DataSource({
+  type: "better-sqlite3",
+  database: db_path,
+  entities: [DbTime],
+  synchronize: true,
+});
+const repo = {
+  Time: db.getRepository(DbTime),
+};
+const db_ready = db.initialize();
+
+export async function dbInsertTime(time: Date) {
+  await db_ready;
+
+  const row = new DbTime();
+  row.time_ms = time.getTime();
+  await repo.Time.insert(row);
+}
+
+export async function dbSelectTimeRange(min: Date, max: Date): Promise<Date[]> {
+  await db_ready;
+
+  const rows = await repo.Time.find({
+    where: { time_ms: TypeOrm.Between(min.getTime(), max.getTime()) },
+  });
+  return rows.map((row) => new Date(row.time_ms));
 }

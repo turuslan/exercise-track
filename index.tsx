@@ -1,4 +1,4 @@
-import * as React from "npm:react";
+import * as React from "react";
 
 import {
   addDays,
@@ -11,11 +11,12 @@ import {
   startOfDay,
   startOfMinute,
   startOfSecond,
-} from "npm:date-fns";
-import { Box, render, Text, useInput } from "npm:ink";
-// @deno-types="npm:@types/react"
-import { useEffect, useReducer, useRef } from "npm:react";
-import { dbInsertTime, dbSelectTimeRange } from "./src/db.ts";
+} from "date-fns";
+import { Box, render, Text, useInput } from "ink";
+import { StrictMode, useEffect, useReducer, useRef } from "react";
+import { dbInsertTime, dbSelectTimeRange } from "./src/db";
+import Koa from "koa";
+import KoaRouter from "@koa/router";
 
 function roundUp(x: number, y: number) {
   return x - x % y + y;
@@ -87,42 +88,61 @@ const time_scale_real: TimeScale = {
 const time_scale = time_scale_real;
 
 interface State {
+  loading: boolean;
   day: Date;
   count: number;
   target: number;
   last: Date | null;
+  insert: Date | null;
 }
 
-type ReducerArg = "key" | "timer";
+type ReducerArg =
+  | { type: "key" }
+  | { type: "timer" }
+  | {
+    type: "loaded";
+    count: number;
+    last: Date | null;
+  }
+  | { type: "inserted" };
 
 function App() {
   const [state, dispatch] = useReducer<State, null, [ReducerArg]>(
     (state, arg) => {
       const now = new Date();
+      if (arg.type === "loaded") {
+        return { ...state, count: arg.count, last: arg.last };
+      }
+      if (arg.type === "inserted") {
+        return { ...state, insert: null };
+      }
       if (!dateEq(state.day, time_scale.getGroup(now))) {
         state = {
           ...state,
           day: time_scale.getGroup(now),
-          count: 0,
+          count: null!,
           target: TARGET,
           last: null,
         };
       }
-      if (arg === "key") {
+      if (arg.type === "key") {
+        if (state.insert !== null) {
+          return state;
+        }
         if (
           state.last !== null &&
           differenceInMilliseconds(now, state.last) < DUPLICATE_TIME_MS
         ) {
           return state;
         }
-        dbInsertTime(now);
         return {
           ...state,
           count: state.count + 1,
           last: now,
+          insert: now,
         };
       }
-      if (arg === "timer") {
+      if (arg.type === "timer") {
         return { ...state };
       }
       throw new Error();
@@ -131,27 +151,45 @@ function App() {
     () => {
       const now = new Date();
       const day = time_scale.getGroup(now);
-      const times = dbSelectTimeRange(
-        time_scale.getGroup(day),
-        time_scale.nextGroup(day),
-      );
-      const day_times = times
-        .filter((time) => dateEq(time_scale.getGroup(time), day));
       return {
+        loading: true,
         day,
-        count: day_times.length,
+        count: null!,
         target: TARGET,
-        last: arrayLast(day_times),
+        last: null,
+        insert: null,
       };
     },
   );
-  const timer = useRef<number>(null);
+  useEffect(() => {
+    const abort = new AbortController();
+    dbSelectTimeRange(
+      time_scale.getGroup(state.day),
+      time_scale.nextGroup(state.day),
+    ).then((times) => {
+      const day_times = times
+        .filter((time) => dateEq(time_scale.getGroup(time), state.day));
+      dispatch({
+        type: "loaded",
+        count: day_times.length,
+        last: arrayLast(day_times),
+      });
+    });
+    return () => abort.abort();
+  }, [state.day]);
+  useEffect(() => {
+    if (state.insert === null) return;
+    dbInsertTime(state.insert).then(() => {
+      dispatch({ type: "inserted" });
+    });
+  }, [state.insert]);
+  const timer = useRef<NodeJS.Timeout>(null);
   useEffect(() => {
     (function f() {
       const now = new Date();
       timer.current = setTimeout(() => {
         f();
-        dispatch("timer");
+        dispatch({ type: "timer" });
       }, differenceInMilliseconds(time_scale.nextTick(now), now));
     })();
     return () => {
@@ -163,7 +201,7 @@ function App() {
   }, []);
   useInput((input, key) => {
     if (key.return) {
-      dispatch("key");
+      dispatch({ type: "key" });
     }
   });
   const now = new Date();
@@ -171,7 +209,7 @@ function App() {
     <Box flexDirection="column">
       <Box>
         <Text>
-          {`${mmdd(now)} ${hhmm(now)}, ${state.count}/${state.target} `}
+          {`${mmdd(now)} ${hhmm(now)}, ${state.count ?? "??"}/${state.target} `}
         </Text>
         <Text>
           {`[${"#".repeat(Math.min(state.count, state.target))}${
@@ -184,14 +222,19 @@ function App() {
   );
 }
 
-render(<App />);
+render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
 
-await Deno.serve({ port: 8087, onListen() {} }, async (req) => {
-  const url = new URL(req.url);
-  if (url.pathname === "/api/list") {
-    const times = dbSelectTimeRange(new Date(0), new Date())
-      .map((x) => x.getTime());
-    return Response.json({ times });
-  }
-  return new Response(null, { status: 404 });
+const router = new KoaRouter();
+router.get("/api/list", async (ctx) => {
+  const times = (await dbSelectTimeRange(new Date(0), new Date()))
+    .map((x) => x.getTime());
+  ctx.body = { times };
 });
+
+const app = new Koa();
+app.use(router.routes());
+app.listen(8087);
