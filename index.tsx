@@ -18,6 +18,26 @@ import { dbInsertTime, dbSelectTimeRange } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
 
+function nullMap<T, U>(value: T | null, f: (value: T) => U) {
+  return value === null ? null : f(value);
+}
+function koaQuery(ctx: Koa.Context, key: string) {
+  let value = ctx.request.query[key];
+  if (Array.isArray(value)) [value] = value;
+  return value ?? null;
+}
+function koaQueryInt(ctx: Koa.Context, key: string) {
+  return nullMap(koaQuery(ctx, key), (s) => {
+    const i = +s;
+    if (isNaN(i)) throw new Error();
+    return i;
+  });
+}
+function koaQueryDate(ctx: Koa.Context, key: string) {
+  const i = koaQueryInt(ctx, key);
+  return i === null ? null : new Date(i);
+}
+
 function roundUp(x: number, y: number) {
   return x - x % y + y;
 }
@@ -230,7 +250,9 @@ render(
 
 const router = new KoaRouter();
 router.get("/api/list", async (ctx) => {
-  const times = (await dbSelectTimeRange(new Date(0), new Date()))
+  const arg_min = koaQueryDate(ctx, "min") ?? new Date(0);
+  const arg_max = koaQueryDate(ctx, "max") ?? new Date();
+  const times = (await dbSelectTimeRange(arg_min, arg_max))
     .map((x) => x.getTime());
   ctx.body = { times };
 });
