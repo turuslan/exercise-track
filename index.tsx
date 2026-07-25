@@ -118,6 +118,7 @@ interface State {
   target: number;
   last: Date | null;
   insert: Date | null;
+  this_device_uid: string | null;
 }
 
 type ReducerArg =
@@ -127,6 +128,7 @@ type ReducerArg =
     type: "loaded";
     count: number;
     last: Date | null;
+    this_device_uid: string;
   }
   | { type: "inserted" };
 
@@ -135,7 +137,12 @@ function App() {
     (state, arg) => {
       const now = new Date();
       if (arg.type === "loaded") {
-        return { ...state, count: arg.count, last: arg.last };
+        return {
+          ...state,
+          count: arg.count,
+          last: arg.last,
+          this_device_uid: arg.this_device_uid,
+        };
       }
       if (arg.type === "inserted") {
         return { ...state, insert: null };
@@ -182,21 +189,26 @@ function App() {
         target: TARGET,
         last: null,
         insert: null,
+        this_device_uid: null,
       };
     },
   );
   useEffect(() => {
     const abort = new AbortController();
-    dbSelectTimeRange(
-      time_scale.getGroup(state.day),
-      time_scale.nextGroup(state.day),
-    ).then((times) => {
+    Promise.all([
+      dbSelectTimeRange(
+        time_scale.getGroup(state.day),
+        time_scale.nextGroup(state.day),
+      ),
+      thisDeviceUid(),
+    ]).then(([times, this_device_uid]) => {
       const day_times = times
         .filter((time) => dateEq(time_scale.getGroup(time), state.day));
       dispatch({
         type: "loaded",
         count: day_times.length,
         last: arrayLast(day_times),
+        this_device_uid,
       });
     });
     return () => abort.abort();
@@ -241,6 +253,9 @@ function App() {
           }${"+".repeat(Math.max(0, state.count - state.target))}]`}
         </Text>
         {state.last && <Text>, {time_scale.ago(state.last, new Date())}</Text>}
+      </Box>
+      <Box>
+        <Text>device uid: {state.this_device_uid}</Text>
       </Box>
     </Box>
   );
