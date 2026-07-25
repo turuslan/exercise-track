@@ -13,14 +13,15 @@ import {
   startOfSecond,
 } from "date-fns";
 import { Box, render, Text, useInput } from "ink";
-import { StrictMode, useEffect, useReducer, useRef } from "react";
+import { StrictMode, useEffect, useReducer, useRef, useState } from "react";
 import { dbInsertTime, dbSelectTimeRange, thisDeviceUid } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
-import * as Mdns from "mdns";
+import * as Mdns from "./src/mdns";
 
 const port = 8087;
-const mdns_type = "exercise-track";
+
+const mdns = new Mdns.Mdns(port);
 
 function nullMap<T, U>(value: T | null, f: (value: T) => U) {
   return value === null ? null : f(value);
@@ -110,6 +111,12 @@ const time_scale_real: TimeScale = {
   },
 };
 const time_scale = time_scale_real;
+
+function useMdnsServices() {
+  const [state, setState] = useState<Mdns.Services>(mdns.services);
+  useEffect(() => mdns.on(setState), [setState]);
+  return state;
+}
 
 interface State {
   loading: boolean;
@@ -241,6 +248,9 @@ function App() {
     }
   });
   const now = new Date();
+
+  const mdns_services = useMdnsServices();
+
   return (
     <Box flexDirection="column">
       <Box>
@@ -257,6 +267,12 @@ function App() {
       <Box>
         <Text>device uid: {state.this_device_uid}</Text>
       </Box>
+      {Object.entries(mdns_services)
+        .map(([uid, addresses]) => (
+          <Box key={uid}>
+            <Text>- {uid} {JSON.stringify(addresses)}</Text>
+          </Box>
+        ))}
     </Box>
   );
 }
@@ -286,11 +302,4 @@ const app = new Koa();
 app.use(router.routes());
 app.listen(port);
 
-thisDeviceUid().then((uid) => {
-  const mdns_advertise = Mdns.createAdvertisement(
-    Mdns.tcp(mdns_type),
-    port,
-    { name: uid },
-  );
-  mdns_advertise.start();
-});
+// TODO: timer+mdns => sync
