@@ -17,6 +17,10 @@ import { StrictMode, useEffect, useReducer, useRef } from "react";
 import { dbInsertTime, dbSelectTimeRange } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
+import * as Mdns from "mdns";
+
+const port = 8087;
+const mdns_type = "exercise-track";
 
 function nullMap<T, U>(value: T | null, f: (value: T) => U) {
   return value === null ? null : f(value);
@@ -259,4 +263,8 @@ router.get("/api/list", async (ctx) => {
 
 const app = new Koa();
 app.use(router.routes());
-app.listen(8087);
+app.listen(port);
+
+// TODO: { name: "DEVICE_ID" }
+const mdns_advertise = Mdns.createAdvertisement(Mdns.tcp(mdns_type), port);
+mdns_advertise.start();
