@@ -258,7 +258,13 @@ router.get("/api/list", async (ctx) => {
   const arg_max = koaQueryDate(ctx, "max") ?? new Date();
   const times = (await dbSelectTimeRange(arg_min, arg_max))
     .map((x) => x.getTime());
-  ctx.body = { times };
+  const diff = false;
+  if (diff) {
+    ctx.body = { times };
+  } else {
+    const times_diff = times.map((x, i, xs) => i === 0 ? x : x - xs[i - 1]);
+    ctx.body = { times_diff };
+  }
 });
 
 const app = new Koa();
