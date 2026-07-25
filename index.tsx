@@ -14,7 +14,7 @@ import {
 } from "date-fns";
 import { Box, render, Text, useInput } from "ink";
 import { StrictMode, useEffect, useReducer, useRef } from "react";
-import { dbInsertTime, dbSelectTimeRange } from "./src/db";
+import { dbInsertTime, dbSelectTimeRange, thisDeviceUid } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
 import * as Mdns from "mdns";
@@ -271,6 +271,11 @@ const app = new Koa();
 app.use(router.routes());
 app.listen(port);
 
-// TODO: { name: "DEVICE_ID" }
-const mdns_advertise = Mdns.createAdvertisement(Mdns.tcp(mdns_type), port);
-mdns_advertise.start();
+thisDeviceUid().then((uid) => {
+  const mdns_advertise = Mdns.createAdvertisement(
+    Mdns.tcp(mdns_type),
+    port,
+    { name: uid },
+  );
+  mdns_advertise.start();
+});

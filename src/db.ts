@@ -105,3 +105,9 @@ export async function dbSelectTimeRange(min: Date, max: Date): Promise<Date[]> {
   });
   return rows.map((row) => new Date(row.time_ms));
 }
+
+export async function thisDeviceUid() {
+  await dbReady();
+
+  return this_device.uid;
+}
