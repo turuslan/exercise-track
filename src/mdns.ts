@@ -7,6 +7,8 @@ export type Services = Record<string, string[]>;
 type ServicesCb = (services: Services) => void;
 
 export class Mdns {
+  advertise: Mdns2.Advertisement = null!;
+  browser: Mdns2.Browser = null!;
   services: Services = {};
   callbacks = new Set<ServicesCb>();
 
@@ -24,15 +26,15 @@ export class Mdns {
 
   constructor(port: number) {
     thisDeviceUid().then((this_device_uid) => {
-      const advertise = Mdns2.createAdvertisement(
+      this.advertise = Mdns2.createAdvertisement(
         Mdns2.tcp(type),
         port,
         { name: this_device_uid },
       );
-      advertise.start();
+      this.advertise.start();
 
-      const browser = Mdns2.createBrowser(Mdns2.tcp(type));
-      browser.on(
+      this.browser = Mdns2.createBrowser(Mdns2.tcp(type));
+      this.browser.on(
         "serviceUp",
         (service) => {
           const uid = service.name;
@@ -45,7 +47,7 @@ export class Mdns {
           this.setServices({ ...this.services, [uid]: addresses });
         },
       );
-      browser.on(
+      this.browser.on(
         "serviceDown",
         (service) => {
           // TODO: duplicate serviceDown, use interfaceIndex/networkInterface
@@ -58,7 +60,12 @@ export class Mdns {
           this.setServices(services);
         },
       );
-      browser.start();
+      this.browser.start();
     });
+  }
+
+  stop() {
+    this.advertise?.stop();
+    this.browser?.stop();
   }
 }

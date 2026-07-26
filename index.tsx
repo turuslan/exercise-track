@@ -7,17 +7,17 @@ import {
   differenceInMilliseconds,
   differenceInMinutes,
   differenceInSeconds,
-  isEqual as dateEq,
   startOfDay,
   startOfMinute,
   startOfSecond,
 } from "date-fns";
 import { Box, render, Text, useInput } from "ink";
-import { StrictMode, useEffect, useReducer, useRef, useState } from "react";
-import { dbInsertTime, dbSelectTimeRange, thisDeviceUid } from "./src/db";
+import { StrictMode, useEffect, useRef, useState } from "react";
+import { dbSelectTimeRange, thisDeviceUid } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
 import * as Mdns from "./src/mdns";
+import { useAddTime, useTimeRange } from "./src/use-time";
 
 const port = 8087;
 
@@ -59,10 +59,6 @@ function hhmm(time: Date) {
 }
 function mmdd(time: Date) {
   return `${pad02(time.getMonth() + 1)}.${pad02(time.getDate())}`;
-}
-
-function cmp<T>(l: T, r: T) {
-  return l < r ? -1 : l > r ? +1 : 0;
 }
 
 const DUPLICATE_TIME_MS = 5000;
@@ -118,122 +114,24 @@ function useMdnsServices() {
   return state;
 }
 
-interface State {
-  loading: boolean;
-  day: Date;
-  count: number;
-  target: number;
-  last: Date | null;
-  insert: Date | null;
-  this_device_uid: string | null;
+function useThisDeviceUid() {
+  const [state, setState] = useState<string | null>(null);
+  useEffect(() => {
+    thisDeviceUid().then(setState);
+  }, []);
+  return state;
 }
 
-type ReducerArg =
-  | { type: "key" }
-  | { type: "timer" }
-  | {
-    type: "loaded";
-    count: number;
-    last: Date | null;
-    this_device_uid: string;
-  }
-  | { type: "inserted" };
-
-function App() {
-  const [state, dispatch] = useReducer<State, null, [ReducerArg]>(
-    (state, arg) => {
-      const now = new Date();
-      if (arg.type === "loaded") {
-        return {
-          ...state,
-          count: arg.count,
-          last: arg.last,
-          this_device_uid: arg.this_device_uid,
-        };
-      }
-      if (arg.type === "inserted") {
-        return { ...state, insert: null };
-      }
-      if (!dateEq(state.day, time_scale.getGroup(now))) {
-        state = {
-          ...state,
-          day: time_scale.getGroup(now),
-          count: null!,
-          target: TARGET,
-          last: null,
-        };
-      }
-      if (arg.type === "key") {
-        if (state.insert !== null) {
-          return state;
-        }
-        if (
-          state.last !== null &&
-          differenceInMilliseconds(now, state.last) < DUPLICATE_TIME_MS
-        ) {
-          return state;
-        }
-        return {
-          ...state,
-          count: state.count + 1,
-          last: now,
-          insert: now,
-        };
-      }
-      if (arg.type === "timer") {
-        return { ...state };
-      }
-      throw new Error();
-    },
-    null,
-    () => {
-      const now = new Date();
-      const day = time_scale.getGroup(now);
-      return {
-        loading: true,
-        day,
-        count: null!,
-        target: TARGET,
-        last: null,
-        insert: null,
-        this_device_uid: null,
-      };
-    },
-  );
-  useEffect(() => {
-    const abort = new AbortController();
-    Promise.all([
-      dbSelectTimeRange(
-        time_scale.getGroup(state.day),
-        time_scale.nextGroup(state.day),
-      ),
-      thisDeviceUid(),
-    ]).then(([times, this_device_uid]) => {
-      const day_times = times
-        .filter((time) => dateEq(time_scale.getGroup(time), state.day));
-      dispatch({
-        type: "loaded",
-        count: day_times.length,
-        last: arrayLast(day_times),
-        this_device_uid,
-      });
-    });
-    return () => abort.abort();
-  }, [state.day]);
-  useEffect(() => {
-    if (state.insert === null) return;
-    dbInsertTime(state.insert).then(() => {
-      dispatch({ type: "inserted" });
-    });
-  }, [state.insert]);
+function useAlignedTimer(next: (now: Date) => Date) {
+  const [state, setState] = useState(0);
   const timer = useRef<NodeJS.Timeout>(null);
   useEffect(() => {
     (function f() {
       const now = new Date();
       timer.current = setTimeout(() => {
         f();
-        dispatch({ type: "timer" });
-      }, differenceInMilliseconds(time_scale.nextTick(now), now));
+        setState((state) => state + 1);
+      }, differenceInMilliseconds(next(now), now));
     })();
     return () => {
       if (timer.current !== null) {
@@ -242,12 +140,32 @@ function App() {
       }
     };
   }, []);
+}
+
+function App() {
+  const this_device_uid = useThisDeviceUid();
+  useAlignedTimer((now) => time_scale.nextTick(now));
+  const now = new Date();
+  const day = time_scale.getGroup(now);
+  const times = useTimeRange(
+    time_scale.getGroup(day),
+    time_scale.nextGroup(day),
+  );
+  const count = times === null ? null : times.length;
+  const last = times === null ? null : arrayLast(times);
+  const add_time = useAddTime();
   useInput((input, key) => {
     if (key.return) {
-      dispatch({ type: "key" });
+      const now = new Date();
+      if (
+        last === null ||
+        differenceInMilliseconds(now, last) >= DUPLICATE_TIME_MS
+      ) {
+        add_time(now);
+      }
+      return;
     }
   });
-  const now = new Date();
 
   const mdns_services = useMdnsServices();
 
@@ -255,17 +173,17 @@ function App() {
     <Box flexDirection="column">
       <Box>
         <Text>
-          {`${mmdd(now)} ${hhmm(now)}, ${state.count ?? "??"}/${state.target} `}
+          {`${mmdd(now)} ${hhmm(now)}, ${count ?? "??"}/${TARGET} `}
         </Text>
         <Text>
-          {`[${"#".repeat(Math.min(state.count, state.target))}${
-            ".".repeat(Math.max(0, state.target - state.count))
-          }${"+".repeat(Math.max(0, state.count - state.target))}]`}
+          {`[${"#".repeat(Math.min(count ?? 0, TARGET))}${
+            ".".repeat(Math.max(0, TARGET - (count ?? 0)))
+          }${"+".repeat(Math.max(0, (count ?? 0) - TARGET))}]`}
         </Text>
-        {state.last && <Text>, {time_scale.ago(state.last, new Date())}</Text>}
+        {last !== null && <Text>, {time_scale.ago(last, new Date())}</Text>}
       </Box>
       <Box>
-        <Text>device uid: {state.this_device_uid}</Text>
+        <Text>device uid: {this_device_uid ?? "???"}</Text>
       </Box>
       {Object.entries(mdns_services)
         .map(([uid, addresses]) => (
@@ -277,7 +195,7 @@ function App() {
   );
 }
 
-render(
+const ink = render(
   <StrictMode>
     <App />
   </StrictMode>,
@@ -300,6 +218,11 @@ router.get("/api/list", async (ctx) => {
 
 const app = new Koa();
 app.use(router.routes());
-app.listen(port);
+const server = app.listen(port);
+
+ink.waitUntilExit().then(() => {
+  server.close();
+  mdns.stop();
+});
 
 // TODO: timer+mdns => sync
