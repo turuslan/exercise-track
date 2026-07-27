@@ -25,6 +25,7 @@ import Koa from "koa";
 import KoaRouter from "@koa/router";
 import * as Mdns from "./src/mdns";
 import { useAddTime, useTimeRange } from "./src/use-time";
+import { cmp } from "./src/cmp";
 
 const port = 8087;
 
@@ -223,18 +224,27 @@ function multiGet<T>(xss: T[][], i: number) {
   throw new Error();
 }
 
+function cmpDevice<T extends { uid: string }>(a: T, b: T) {
+  return cmp(a.uid, b.uid);
+}
 function UiDevices(props: PropOnInput) {
   const [state, setState] = useState({
     selected: null as { uid: string; multi_i: number } | null,
+    db_devices: [] as { uid: string; name: string }[],
     // TODO: editing
   });
   const this_device_uid = useThisDeviceUid();
   const mdns_services = useMdnsServices();
   // TODO: db
   const [added_uids, unknown_uids] = useMemo(() => {
-    const unknown = Object.keys(mdns_services).sort();
-    return [[] as string[], unknown];
-  }, [mdns_services]);
+    const added_uids = state.db_devices
+      .map((device) => device.uid)
+      .sort();
+    const unknown_uids = Object.keys(mdns_services)
+      .filter((uid) => !added_uids.includes(uid))
+      .sort();
+    return [added_uids, unknown_uids];
+  }, [state.db_devices, mdns_services]);
   const multi_uids = [added_uids, unknown_uids];
   function select(multi_i: number) {
     if (!multiBound(multi_uids, multi_i)) return null;
@@ -267,8 +277,37 @@ function UiDevices(props: PropOnInput) {
       setState((state) => ({ ...state, selected: select(i) }));
       return;
     }
+    if (input === "=") {
+      const { selected } = state;
+      if (selected === null) return;
+      if (added_uids.includes(selected.uid)) return;
+      // TODO: db
+      setState((state) => ({
+        ...state,
+        db_devices: [...state.db_devices, {
+          uid: selected.uid,
+          name: selected.uid,
+        }].sort(cmpDevice),
+      }));
+      return;
+    }
+    if (input === "-") {
+      const { selected } = state;
+      if (selected === null) return;
+      if (!added_uids.includes(selected.uid)) return;
+      // TODO: db
+      const db_devices = state.db_devices.slice();
+      const i = db_devices.findIndex((device) => device.uid === selected.uid);
+      if (i === -1) return;
+      db_devices.splice(i, 1);
+      setState((state) => ({ ...state, db_devices }));
+      return;
+    }
     props.onInput?.(input, key);
   });
+  function arrow(uid: string) {
+    return uid === state.selected?.uid ? ">" : " ";
+  }
   return (
     <Box flexDirection="column">
       <Box>
@@ -277,17 +316,23 @@ function UiDevices(props: PropOnInput) {
       <Box>
         <Text>added devices:</Text>
       </Box>
+      {state.db_devices
+        .map((device) => (
+          <Box key={device.uid}>
+            <Text>
+              {`${arrow(device.uid)} ${
+                device.uid in mdns_services ? "+" : "-"
+              } ${device.uid} "${device.name}"`}
+            </Text>
+          </Box>
+        ))}
       <Box>
         <Text>unknown devices:</Text>
       </Box>
-      {Object.entries(mdns_services)
-        .map(([uid, addresses]) => (
+      {unknown_uids
+        .map((uid) => (
           <Box key={uid}>
-            <Text>
-              {uid === state.selected?.uid ? ">" : " "}
-              {" ? "}
-              {uid} {JSON.stringify(addresses)}
-            </Text>
+            <Text>{`${arrow(uid)} ? ${uid}`}</Text>
           </Box>
         ))}
     </Box>
