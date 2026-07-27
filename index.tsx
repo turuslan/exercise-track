@@ -11,8 +11,8 @@ import {
   startOfMinute,
   startOfSecond,
 } from "date-fns";
-import { Box, render, Text, useInput } from "ink";
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { Box, Key, render, Text, useInput } from "ink";
+import { StrictMode, useEffect, useEffectEvent, useRef, useState } from "react";
 import { dbSelectTimeRange, thisDeviceUid } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
@@ -142,7 +142,11 @@ function useAlignedTimer(next: (now: Date) => Date) {
   }, []);
 }
 
-function UiDay() {
+interface PropOnInput {
+  onInput?(input: string, key: Key): void;
+}
+
+function UiDay(props: PropOnInput) {
   useAlignedTimer((now) => time_scale.nextTick(now));
   const now = new Date();
   const day = time_scale.getGroup(now);
@@ -164,6 +168,7 @@ function UiDay() {
       }
       return;
     }
+    props.onInput?.(input, key);
   });
   return (
     <Box flexDirection="column">
@@ -182,9 +187,12 @@ function UiDay() {
   );
 }
 
-function UiDevices() {
+function UiDevices(props: PropOnInput) {
   const this_device_uid = useThisDeviceUid();
   const mdns_services = useMdnsServices();
+  useInput((input, key) => {
+    props.onInput?.(input, key);
+  });
   return (
     <Box flexDirection="column">
       <Box>
@@ -202,8 +210,7 @@ function UiDevices() {
 
 function App() {
   const [state, setState] = useState({ devices: false });
-  // TODO: useInput child wrapper
-  useInput((input, key) => {
+  const onInput = useEffectEvent((input: string, key: Key) => {
     if (input === "d") {
       setState((state) => ({ ...state, devices: !state.devices }));
       return;
@@ -211,7 +218,9 @@ function App() {
   });
   return (
     <Box flexDirection="column">
-      {state.devices ? <UiDevices /> : <UiDay />}
+      {state.devices
+        ? <UiDevices onInput={onInput} />
+        : <UiDay onInput={onInput} />}
     </Box>
   );
 }
