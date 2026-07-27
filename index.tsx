@@ -142,8 +142,25 @@ function useAlignedTimer(next: (now: Date) => Date) {
   }, []);
 }
 
-function App() {
+function UiDevices() {
   const this_device_uid = useThisDeviceUid();
+  const mdns_services = useMdnsServices();
+  return (
+    <Box flexDirection="column">
+      <Box>
+        <Text>device uid: {this_device_uid ?? "???"}</Text>
+      </Box>
+      {Object.entries(mdns_services)
+        .map(([uid, addresses]) => (
+          <Box key={uid}>
+            <Text>- {uid} {JSON.stringify(addresses)}</Text>
+          </Box>
+        ))}
+    </Box>
+  );
+}
+
+function App() {
   useAlignedTimer((now) => time_scale.nextTick(now));
   const now = new Date();
   const day = time_scale.getGroup(now);
@@ -167,8 +184,6 @@ function App() {
     }
   });
 
-  const mdns_services = useMdnsServices();
-
   return (
     <Box flexDirection="column">
       <Box>
@@ -182,15 +197,7 @@ function App() {
         </Text>
         {last !== null && <Text>, {time_scale.ago(last, new Date())}</Text>}
       </Box>
-      <Box>
-        <Text>device uid: {this_device_uid ?? "???"}</Text>
-      </Box>
-      {Object.entries(mdns_services)
-        .map(([uid, addresses]) => (
-          <Box key={uid}>
-            <Text>- {uid} {JSON.stringify(addresses)}</Text>
-          </Box>
-        ))}
+      <UiDevices />
     </Box>
   );
 }
