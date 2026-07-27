@@ -142,25 +142,7 @@ function useAlignedTimer(next: (now: Date) => Date) {
   }, []);
 }
 
-function UiDevices() {
-  const this_device_uid = useThisDeviceUid();
-  const mdns_services = useMdnsServices();
-  return (
-    <Box flexDirection="column">
-      <Box>
-        <Text>device uid: {this_device_uid ?? "???"}</Text>
-      </Box>
-      {Object.entries(mdns_services)
-        .map(([uid, addresses]) => (
-          <Box key={uid}>
-            <Text>- {uid} {JSON.stringify(addresses)}</Text>
-          </Box>
-        ))}
-    </Box>
-  );
-}
-
-function App() {
+function UiDay() {
   useAlignedTimer((now) => time_scale.nextTick(now));
   const now = new Date();
   const day = time_scale.getGroup(now);
@@ -183,7 +165,6 @@ function App() {
       return;
     }
   });
-
   return (
     <Box flexDirection="column">
       <Box>
@@ -197,7 +178,40 @@ function App() {
         </Text>
         {last !== null && <Text>, {time_scale.ago(last, new Date())}</Text>}
       </Box>
-      <UiDevices />
+    </Box>
+  );
+}
+
+function UiDevices() {
+  const this_device_uid = useThisDeviceUid();
+  const mdns_services = useMdnsServices();
+  return (
+    <Box flexDirection="column">
+      <Box>
+        <Text>device uid: {this_device_uid ?? "???"}</Text>
+      </Box>
+      {Object.entries(mdns_services)
+        .map(([uid, addresses]) => (
+          <Box key={uid}>
+            <Text>- {uid} {JSON.stringify(addresses)}</Text>
+          </Box>
+        ))}
+    </Box>
+  );
+}
+
+function App() {
+  const [state, setState] = useState({ devices: false });
+  // TODO: useInput child wrapper
+  useInput((input, key) => {
+    if (input === "d") {
+      setState((state) => ({ ...state, devices: !state.devices }));
+      return;
+    }
+  });
+  return (
+    <Box flexDirection="column">
+      {state.devices ? <UiDevices /> : <UiDay />}
     </Box>
   );
 }
