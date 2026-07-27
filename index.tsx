@@ -227,24 +227,47 @@ function multiGet<T>(xss: T[][], i: number) {
 function cmpDevice<T extends { uid: string }>(a: T, b: T) {
   return cmp(a.uid, b.uid);
 }
+// TODO: move up, needed for sync
+function useDbDevices() {
+  const [state, setState] = useState({
+    devices: [] as { uid: string; name: string }[],
+  });
+  return {
+    devices: state.devices,
+    upsert(uid: string, name: string) {
+      // TODO: db
+      setState((state) => ({
+        ...state,
+        devices: [...state.devices, { uid, name }].sort(cmpDevice),
+      }));
+    },
+    remove(uid: string) {
+      // TODO: db
+      const devices = state.devices.slice();
+      const i = devices.findIndex((device) => device.uid === uid);
+      if (i === -1) return;
+      devices.splice(i, 1);
+      setState((state) => ({ ...state, devices }));
+    },
+  };
+}
 function UiDevices(props: PropOnInput) {
+  const db_devices = useDbDevices();
   const [state, setState] = useState({
     selected: null as { uid: string; multi_i: number } | null,
-    db_devices: [] as { uid: string; name: string }[],
     // TODO: editing
   });
   const this_device_uid = useThisDeviceUid();
   const mdns_services = useMdnsServices();
-  // TODO: db
   const [added_uids, unknown_uids] = useMemo(() => {
-    const added_uids = state.db_devices
+    const added_uids = db_devices.devices
       .map((device) => device.uid)
       .sort();
     const unknown_uids = Object.keys(mdns_services)
       .filter((uid) => !added_uids.includes(uid))
       .sort();
     return [added_uids, unknown_uids];
-  }, [state.db_devices, mdns_services]);
+  }, [db_devices.devices, mdns_services]);
   const multi_uids = [added_uids, unknown_uids];
   function select(multi_i: number) {
     if (!multiBound(multi_uids, multi_i)) return null;
@@ -281,26 +304,14 @@ function UiDevices(props: PropOnInput) {
       const { selected } = state;
       if (selected === null) return;
       if (added_uids.includes(selected.uid)) return;
-      // TODO: db
-      setState((state) => ({
-        ...state,
-        db_devices: [...state.db_devices, {
-          uid: selected.uid,
-          name: selected.uid,
-        }].sort(cmpDevice),
-      }));
+      db_devices.upsert(selected.uid, selected.uid);
       return;
     }
     if (input === "-") {
       const { selected } = state;
       if (selected === null) return;
       if (!added_uids.includes(selected.uid)) return;
-      // TODO: db
-      const db_devices = state.db_devices.slice();
-      const i = db_devices.findIndex((device) => device.uid === selected.uid);
-      if (i === -1) return;
-      db_devices.splice(i, 1);
-      setState((state) => ({ ...state, db_devices }));
+      db_devices.remove(selected.uid);
       return;
     }
     props.onInput?.(input, key);
@@ -316,7 +327,7 @@ function UiDevices(props: PropOnInput) {
       <Box>
         <Text>added devices:</Text>
       </Box>
-      {state.db_devices
+      {db_devices.devices
         .map((device) => (
           <Box key={device.uid}>
             <Text>
