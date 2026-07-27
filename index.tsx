@@ -12,7 +12,14 @@ import {
   startOfSecond,
 } from "date-fns";
 import { Box, Key, render, Text, useInput } from "ink";
-import { StrictMode, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  StrictMode,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { dbSelectTimeRange, thisDeviceUid } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
@@ -187,21 +194,100 @@ function UiDay(props: PropOnInput) {
   );
 }
 
+function multiIndexOf<T>(xss: T[][], x: T) {
+  let offset = 0;
+  for (const xs of xss) {
+    const i = xs.indexOf(x);
+    if (i !== -1) {
+      return offset + i;
+    }
+    offset += xs.length;
+  }
+  return -1;
+}
+function multiLength<T>(xss: T[][]) {
+  return xss.reduce((sum, xs) => sum + xs.length, 0);
+}
+function multiBound<T>(xss: T[][], i: number) {
+  return 0 <= i && i < multiLength(xss);
+}
+function multiGet<T>(xss: T[][], i: number) {
+  let begin = 0;
+  if (i >= 0) {
+    for (const xs of xss) {
+      const end = begin + xs.length;
+      if (begin <= i && i < end) return xs[i];
+      begin = end;
+    }
+  }
+  throw new Error();
+}
+
 function UiDevices(props: PropOnInput) {
+  const [state, setState] = useState({
+    selected: null as { uid: string; multi_i: number } | null,
+    // TODO: editing
+  });
   const this_device_uid = useThisDeviceUid();
   const mdns_services = useMdnsServices();
+  // TODO: db
+  const [added_uids, unknown_uids] = useMemo(() => {
+    const unknown = Object.keys(mdns_services).sort();
+    return [[] as string[], unknown];
+  }, [mdns_services]);
+  const multi_uids = [added_uids, unknown_uids];
+  function select(multi_i: number) {
+    if (!multiBound(multi_uids, multi_i)) return null;
+    const uid = multiGet(multi_uids, multi_i);
+    return { uid, multi_i };
+  }
+  useEffect(() =>
+    setState((state) => {
+      if (state.selected === null) {
+        const selected = select(0);
+        if (selected === null) return state;
+        return { ...state, selected };
+      }
+      let i = multiIndexOf(multi_uids, state.selected.uid);
+      if (i === -1) {
+        return { ...state, selected: select(state.selected.multi_i) };
+      }
+      if (state.selected.multi_i !== i) {
+        return { ...state, selected: { uid: state.selected.uid, multi_i: i } };
+      }
+      return state;
+    }), [state.selected, added_uids, unknown_uids]);
   useInput((input, key) => {
+    // TODO: editing
+    if (key.upArrow || key.downArrow) {
+      if (state.selected === null) return;
+      const delta = key.upArrow ? -1 : +1;
+      const i = state.selected.multi_i + delta;
+      if (!multiBound(multi_uids, i)) return;
+      setState((state) => ({ ...state, selected: select(i) }));
+      return;
+    }
     props.onInput?.(input, key);
   });
   return (
     <Box flexDirection="column">
       <Box>
-        <Text>device uid: {this_device_uid ?? "???"}</Text>
+        <Text>this device uid: {this_device_uid ?? "???"}</Text>
+      </Box>
+      <Box>
+        <Text>added devices:</Text>
+      </Box>
+      <Box>
+        <Text>unknown devices:</Text>
       </Box>
       {Object.entries(mdns_services)
         .map(([uid, addresses]) => (
           <Box key={uid}>
-            <Text>- {uid} {JSON.stringify(addresses)}</Text>
+            <Text>
+              {uid === state.selected?.uid ? ">" : " "}
+              {" ? "}
+              {uid} {JSON.stringify(addresses)}
+            </Text>
           </Box>
         ))}
     </Box>
