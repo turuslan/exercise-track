@@ -111,3 +111,25 @@ export async function thisDeviceUid() {
 
   return this_device.uid;
 }
+
+export async function dbDevices() {
+  await dbReady();
+
+  const devices = await db.manager.find(
+    DbDevice,
+    { where: { uid: TypeOrm.Not(this_device.uid) } },
+  );
+  return devices.map((device) => ({ uid: device.uid, name: device.uid }));
+}
+
+export async function dbUpsertDevice(uid: string, name: string) {
+  await dbReady();
+
+  await db.manager.upsert(DbDevice, { uid, name }, ["uid"]);
+}
+
+export async function dbRemoveDevice(uid: string) {
+  await dbReady();
+
+  await db.manager.delete(DbDevice, { uid });
+}
