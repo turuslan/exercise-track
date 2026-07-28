@@ -20,7 +20,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { dbSelectTimeRange } from "./src/db";
+import { dbSelectTimeRange, dbSelectTimeRangeMany } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
 import { mdns, Services } from "./src/mdns";
@@ -31,6 +31,7 @@ import { toResponse, useSync, wsServerSession } from "./src/use-sync";
 import { debugPort } from "./src/debug";
 import koaWs from "koa-websocket";
 import { useThisDeviceUid } from "./src/use-this-device";
+import { TimeByDevice } from "./src/types";
 
 const port = debugPort() ?? 8087;
 
@@ -378,28 +379,20 @@ const ink = render(
 const router = new KoaRouter();
 router.get("/api/list", async (ctx) => {
   const arg_min = koaQueryInt(ctx, "min") ?? 0;
-  const arg_max = koaQueryInt(ctx, "max") ?? Date.now();
+  const arg_max = koaQueryInt(ctx, "max");
   const arg_device_uid = koaQuery(ctx, "device_uid");
   const times = await dbSelectTimeRange(arg_min, arg_max, arg_device_uid);
   ctx.body = toResponse(times);
+});
+router.get("/api/sync", async (ctx) => {
+  const arg_devices = JSON.parse(koaQuery(ctx, "devices")!) as TimeByDevice;
+  ctx.body = toResponse(await dbSelectTimeRangeMany(arg_devices));
 });
 
 const ws_router = new KoaRouter();
 ws_router.get("/ws", async (ctx, next) => {
   const ws = ctx.websocket as WebSocket;
-  const arg_min = koaQueryInt(ctx, "min");
-  const arg_device_uid = koaQuery(ctx, "device_uid");
-  if (arg_min === null) {
-    ws.send(`missing "min" query`);
-    ws.close();
-    return;
-  }
-  if (arg_device_uid === null) {
-    ws.send(`missing "device_uid" query`);
-    ws.close();
-    return;
-  }
-  wsServerSession(ws, arg_min, arg_device_uid);
+  wsServerSession(ws);
   return next;
 });
 

@@ -1,3 +1,4 @@
+export type TimeByDevice = Record<string, number>;
 export type TimesByDevice = Record<string, number[]>;
 
 export function mapGroup<T, U>(

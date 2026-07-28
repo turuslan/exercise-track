@@ -1,7 +1,7 @@
 import * as TypeOrm from "typeorm";
 import * as Url from "node:url";
 import { debugDb, debugTypeormSynchronize, debugUid } from "./debug";
-import { filterGroup, mapGroup, TimesByDevice } from "./types";
+import { filterGroup, mapGroup, TimeByDevice, TimesByDevice } from "./types";
 import { cmp } from "./cmp";
 
 let this_device: DbDevice = null!;
@@ -118,11 +118,12 @@ export async function dbInsertTime(time: number) {
 
 export async function dbSelectTimeRange(
   min: number,
-  max: number,
+  max: number | null,
   device_uid: string | null,
 ): Promise<TimesByDevice> {
   await dbReady();
 
+  max ??= Date.now();
   const where_device = await whereDeviceUid(device_uid);
   if (where_device === null) return {};
   const rows = await db.manager.find(DbTime, {
@@ -152,6 +153,17 @@ export async function dbSelectTimeRange(
   return group;
 }
 
+export async function dbSelectTimeRangeMany(devices: TimeByDevice) {
+  await dbReady();
+
+  const times: TimesByDevice = {};
+  for (const [device_uid, min] of Object.entries(devices)) {
+    const device_times = await dbSelectTimeRange(min, null, device_uid);
+    Object.assign(times, device_times);
+  }
+  return times;
+}
+
 export async function dbMaxTime(
   device_uid: string,
 ): Promise<number | null> {
@@ -160,6 +172,16 @@ export async function dbMaxTime(
   const where_device = await whereDeviceUid(device_uid);
   if (where_device === null) return null;
   return await db.manager.maximum(DbTime, "time_ms");
+}
+
+export async function dbMaxTimeAll(): Promise<TimeByDevice> {
+  await dbReady();
+
+  const devices: TimeByDevice = {};
+  for (const device of await dbDevices()) {
+    devices[device.uid] = await dbMaxTime(device.uid) ?? 0;
+  }
+  return devices;
 }
 
 export async function dbMergeTime(device_uid: string, times: number[]) {
@@ -183,6 +205,17 @@ export async function dbMergeTime(device_uid: string, times: number[]) {
     }),
   );
   return times;
+}
+
+export async function dbMergeTimeMany(
+  devices: TimesByDevice,
+): Promise<TimesByDevice> {
+  await dbReady();
+  const added: TimesByDevice = {};
+  for (const [device_uid, times] of Object.entries(devices)) {
+    added[device_uid] = await dbMergeTime(device_uid, times);
+  }
+  return added;
 }
 
 export async function thisDeviceUid() {
