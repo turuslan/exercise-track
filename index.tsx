@@ -28,8 +28,9 @@ import { useAddTime, useTimeRange } from "./src/use-time";
 import { UncontrolledTextInput } from "ink-text-input";
 import { useDbDevices } from "./src/use-device";
 import { toDiff, useSync } from "./src/use-sync";
+import { debugPort } from "./src/debug";
 
-const port = 8087;
+const port = debugPort() ?? 8087;
 
 const mdns = new Mdns.Mdns(port);
 

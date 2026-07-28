@@ -1,14 +1,19 @@
 import * as TypeOrm from "typeorm";
 import * as Url from "node:url";
+import { debugDb, debugTypeormSynchronize, debugUid } from "./debug";
 
 let this_device: DbDevice = null!;
 
-const db_path = Url.fileURLToPath(
+const db_path = debugDb() ?? Url.fileURLToPath(
   Url.resolve(import.meta.url, "../exercise.db"),
 );
 const migrations_path = Url.fileURLToPath(
   Url.resolve(import.meta.url, "migrations/*.ts"),
 );
+
+function makeUid() {
+  return `_${Math.floor(0x100000000 * Math.random())}`;
+}
 
 async function findOrInsert<T, K extends keyof T>(
   tx: TypeOrm.EntityManager,
@@ -58,6 +63,7 @@ const db = new TypeOrm.DataSource({
   database: db_path,
   entities: [DbTime, DbDevice, DbKv],
   migrations: [migrations_path],
+  synchronize: debugTypeormSynchronize(),
 });
 export const AppDataSource = db;
 let _db_ready: Promise<void> = null!;
@@ -70,7 +76,7 @@ async function dbReady() {
         "key",
         "this_device_uid",
         (kv) => {
-          kv.value = `_${Math.floor(0x100000000 * Math.random())}`;
+          kv.value = debugUid() ?? makeUid();
         },
       );
       this_device = await findOrInsert(
