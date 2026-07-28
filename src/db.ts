@@ -88,6 +88,15 @@ async function dbReady() {
   await _db_ready;
 }
 
+async function whereDeviceUid(uid: string | null) {
+  if (uid === null) return {};
+  const device = uid !== null
+    ? await db.manager.findOne(DbDevice, { where: { uid } })
+    : null;
+  if (device === null) return null;
+  return { device_lid: device.lid };
+}
+
 export async function dbInsertTime(time: Date) {
   await dbReady();
 
@@ -97,13 +106,31 @@ export async function dbInsertTime(time: Date) {
   await db.manager.insert(DbTime, row);
 }
 
-export async function dbSelectTimeRange(min: Date, max: Date): Promise<Date[]> {
+export async function dbSelectTimeRange(
+  min: Date,
+  max: Date,
+  device_uid: string | null,
+): Promise<Date[]> {
   await dbReady();
 
+  const where_device = await whereDeviceUid(device_uid);
+  if (where_device === null) return [];
   const rows = await db.manager.find(DbTime, {
-    where: { time_ms: TypeOrm.Between(min.getTime(), max.getTime()) },
+    where: {
+      time_ms: TypeOrm.Between(min.getTime(), max.getTime()),
+      ...where_device,
+    },
   });
   return rows.map((row) => new Date(row.time_ms));
+}
+
+export async function dbMaxTime(
+  device_uid: string,
+): Promise<Date | null> {
+  const where_device = await whereDeviceUid(device_uid);
+  if (where_device === null) return null;
+  const time_ms = await db.manager.maximum(DbTime, "time_ms");
+  return time_ms !== null ? new Date(time_ms) : null;
 }
 
 export async function thisDeviceUid() {

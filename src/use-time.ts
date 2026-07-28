@@ -14,7 +14,7 @@ export function useTimeRange(min: Date, max: Date) {
   const [state, setState] = useState<Date[] | null>(null);
   useEffect(() => {
     setState(null);
-    dbSelectTimeRange(min, max).then((times) => setState(times));
+    dbSelectTimeRange(min, max, null).then((times) => setState(times));
     return subscribe.subscribe((times) =>
       setState((state) => {
         const added = times.filter((time) =>

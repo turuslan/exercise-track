@@ -380,7 +380,8 @@ const router = new KoaRouter();
 router.get("/api/list", async (ctx) => {
   const arg_min = koaQueryDate(ctx, "min") ?? new Date(0);
   const arg_max = koaQueryDate(ctx, "max") ?? new Date();
-  const times = (await dbSelectTimeRange(arg_min, arg_max))
+  const arg_device_uid = koaQuery(ctx, "device_uid");
+  const times = (await dbSelectTimeRange(arg_min, arg_max, arg_device_uid))
     .map((x) => x.getTime());
   const diff = false;
   if (diff) {
