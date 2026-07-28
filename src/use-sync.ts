@@ -2,13 +2,25 @@ import {
   dbDevices,
   dbMaxTimeAll,
   dbMergeTimeMany,
-  dbSelectTimeRange,
   dbSelectTimeRangeMany,
 } from "./db";
 import { mdns } from "./mdns";
 import { mapGroup, TimeByDevice, TimesByDevice } from "./types";
 import { subscribeDeviceAdded } from "./use-device";
 import { notifyTimeAdded, subscribeTimeAdded } from "./use-time";
+
+function getAddress(device_uid: string) {
+  const addresses = mdns.services[device_uid] ?? [];
+  if (addresses.length === 0) {
+    return null;
+  }
+  return addresses[0];
+}
+
+async function merge(times: TimesByDevice) {
+  const added = await dbMergeTimeMany(times);
+  notifyTimeAdded(added);
+}
 
 export function toDiff(times: number[]) {
   return times.map((x, i, xs) => i === 0 ? x : x - xs[i - 1]);
@@ -45,11 +57,8 @@ function fromResponse(
 const syncing = new Set<string>();
 
 async function syncLocked(device_uid: string) {
-  const addresses = mdns.services[device_uid] ?? [];
-  if (addresses.length === 0) {
-    return;
-  }
-  const address = addresses[0];
+  const address = getAddress(device_uid);
+  if (address === null) return;
   const api_url = new URL(`http://${address}/api/sync`);
   const devices = await dbMaxTimeAll();
   api_url.searchParams.set("devices", JSON.stringify(devices));
@@ -58,8 +67,7 @@ async function syncLocked(device_uid: string) {
     return;
   }
   const times = fromResponse(await res.json());
-  const added = await dbMergeTimeMany(times);
-  notifyTimeAdded(added);
+  await merge(times);
 }
 async function sync(device_uid: string) {
   if (syncing.has(device_uid)) return;
@@ -71,11 +79,28 @@ async function sync(device_uid: string) {
   }
 }
 
-// TODO: updating DbDevice.last_sync should update ui, but should not cause sync
+const wss = new Map<string, WebSocket>();
+
+function openWs(device_uid: string) {
+  if (wss.has(device_uid)) return;
+  const address = getAddress(device_uid);
+  if (address === null) return;
+  const ws = new WebSocket(`ws://${address}/ws`);
+  wss.set(device_uid, ws);
+  ws.onopen = async () => {
+    const devices = await dbMaxTimeAll();
+    ws.send(JSON.stringify(devices));
+  };
+  ws.onmessage = async (e) => {
+    const times = fromResponse(JSON.parse(e.data));
+    await merge(times);
+  };
+  ws.onclose = () => wss.delete(device_uid);
+}
+
 async function syncAll() {
   for (const device of await dbDevices()) {
-    // TODO: WebSocket if not yet
-    await sync(device.uid);
+    openWs(device.uid);
   }
 }
 
