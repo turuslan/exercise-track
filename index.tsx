@@ -223,7 +223,7 @@ function multiGet<T>(xss: T[][], i: number) {
   if (i >= 0) {
     for (const xs of xss) {
       const end = begin + xs.length;
-      if (begin <= i && i < end) return xs[i];
+      if (begin <= i && i < end) return xs[i - begin];
       begin = end;
     }
   }
