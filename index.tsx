@@ -155,7 +155,7 @@ interface PropOnInput {
   onInput?(input: string, key: Key): void;
 }
 
-function UiDay(props: PropOnInput) {
+function UiDay(props: PropOnInput & { focus: boolean }) {
   useAlignedTimer((now) => time_scale.nextTick(now));
   const now = new Date();
   const day = time_scale.getGroup(now);
@@ -178,7 +178,7 @@ function UiDay(props: PropOnInput) {
       return;
     }
     props.onInput?.(input, key);
-  });
+  }, { isActive: props.focus ?? true });
   return (
     <Box flexDirection="column">
       <Box>
@@ -369,9 +369,8 @@ function App() {
   });
   return (
     <Box flexDirection="column">
-      {state.devices
-        ? <UiDevices onInput={onInput} />
-        : <UiDay onInput={onInput} />}
+      <UiDay onInput={onInput} focus={!state.devices} />
+      {state.devices ? <UiDevices onInput={onInput} /> : null}
     </Box>
   );
 }
