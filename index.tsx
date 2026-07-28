@@ -23,7 +23,7 @@ import {
 import { dbSelectTimeRange, thisDeviceUid } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
-import * as Mdns from "./src/mdns";
+import { mdns, Services } from "./src/mdns";
 import { useAddTime, useTimeRange } from "./src/use-time";
 import { UncontrolledTextInput } from "ink-text-input";
 import { useDbDevices } from "./src/use-device";
@@ -31,8 +31,6 @@ import { toDiff, useSync } from "./src/use-sync";
 import { debugPort } from "./src/debug";
 
 const port = debugPort() ?? 8087;
-
-const mdns = new Mdns.Mdns(port);
 
 function nullMap<T, U>(value: T | null, f: (value: T) => U) {
   return value === null ? null : f(value);
@@ -120,7 +118,7 @@ const time_scale_real: TimeScale = {
 const time_scale = time_scale_real;
 
 function useMdnsServices() {
-  const [state, setState] = useState<Mdns.Services>(mdns.services);
+  const [state, setState] = useState<Services>(mdns.services);
   useEffect(() => mdns.on(setState), [setState]);
   return state;
 }
@@ -228,7 +226,7 @@ function multiGet<T>(xss: T[][], i: number) {
 }
 
 function UiDevices(props: PropOnInput) {
-  const sync = useSync(mdns);
+  const sync = useSync();
   const db_devices = useDbDevices();
   const [state, setState] = useState({
     selected: null as { uid: string; multi_i: number } | null,
@@ -308,7 +306,6 @@ function UiDevices(props: PropOnInput) {
       const { selected } = state;
       if (selected === null) return;
       if (!added_uids.includes(selected.uid)) return;
-      mdns_services;
       sync.sync(selected.uid);
     }
     props.onInput?.(input, key);
@@ -405,9 +402,9 @@ const app = new Koa();
 app.use(router.routes());
 const server = app.listen(port);
 
+mdns.advertise(port);
+
 ink.waitUntilExit().then(() => {
   server.close();
   mdns.stop();
 });
-
-// TODO: timer+mdns => sync

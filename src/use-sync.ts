@@ -1,5 +1,5 @@
 import { dbMaxTime, dbMergeTime } from "./db";
-import { Mdns } from "./mdns";
+import { mdns } from "./mdns";
 import { notifyTimeAdded } from "./use-time";
 
 export function toDiff(times: number[]) {
@@ -17,7 +17,7 @@ function fromDiff(times_diff: number[]) {
 
 const syncing = new Set<string>();
 
-async function syncLocked(mdns: Mdns, device_uid: string) {
+async function syncLocked(device_uid: string) {
   const addresses = mdns.services[device_uid] ?? [];
   if (addresses.length === 0) {
     return;
@@ -42,11 +42,11 @@ async function syncLocked(mdns: Mdns, device_uid: string) {
   );
   notifyTimeAdded(added);
 }
-async function sync(mdns: Mdns, device_uid: string) {
+async function sync(device_uid: string) {
   if (syncing.has(device_uid)) return;
   syncing.add(device_uid);
   try {
-    await syncLocked(mdns, device_uid);
+    await syncLocked(device_uid);
   } finally {
     syncing.delete(device_uid);
   }
@@ -54,10 +54,8 @@ async function sync(mdns: Mdns, device_uid: string) {
 
 // TODO: request all devices from all devices
 // TODO: DbDevice.last_sync
-export function useSync(mdns: Mdns) {
+export function useSync() {
   return {
-    async sync(device_uid: string) {
-      sync(mdns, device_uid);
-    },
+    sync,
   };
 }

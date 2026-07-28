@@ -7,7 +7,7 @@ export type Services = Record<string, string[]>;
 type ServicesCb = (services: Services) => void;
 
 export class Mdns {
-  advertise: Mdns2.Advertisement = null!;
+  advertisement: Mdns2.Advertisement = null!;
   browser: Mdns2.Browser = null!;
   services: Services = {};
   callbacks = new Set<ServicesCb>();
@@ -24,16 +24,9 @@ export class Mdns {
     };
   }
 
-  constructor(port: number) {
+  constructor() {
+    this.browser = Mdns2.createBrowser(Mdns2.tcp(type));
     thisDeviceUid().then((this_device_uid) => {
-      this.advertise = Mdns2.createAdvertisement(
-        Mdns2.tcp(type),
-        port,
-        { name: this_device_uid },
-      );
-      this.advertise.start();
-
-      this.browser = Mdns2.createBrowser(Mdns2.tcp(type));
       this.browser.on(
         "serviceUp",
         (service) => {
@@ -64,8 +57,21 @@ export class Mdns {
     });
   }
 
+  async advertise(port: number) {
+    const this_device_uid = await thisDeviceUid();
+    if (this.advertisement !== null) throw new Error();
+    this.advertisement = Mdns2.createAdvertisement(
+      Mdns2.tcp(type),
+      port,
+      { name: this_device_uid },
+    );
+    this.advertisement.start();
+  }
+
   stop() {
-    this.advertise?.stop();
+    this.advertisement?.stop();
     this.browser?.stop();
   }
 }
+
+export const mdns = new Mdns();
