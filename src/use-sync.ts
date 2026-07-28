@@ -104,7 +104,6 @@ async function syncAll() {
   }
 }
 
-// TODO: DbDevice.last_sync
 export function useSync() {
   return {
     sync,
