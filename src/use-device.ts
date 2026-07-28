@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { dbDevices, dbRemoveDevice, dbUpsertDevice } from "./db";
 import { cmp } from "./cmp";
-import { Subscribe } from "./subscribe";
+import { Subscribe, Subscriber } from "./subscribe";
 
 const subscribe = new Subscribe<void>();
 
@@ -51,4 +51,8 @@ export function useDbDevices() {
       setState((state) => ({ ...state, remove: uid }));
     },
   };
+}
+
+export function subscribeDeviceAdded(subscriber: Subscriber<void>) {
+  return subscribe.subscribe(subscriber);
 }

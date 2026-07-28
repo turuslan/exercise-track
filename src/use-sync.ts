@@ -1,5 +1,6 @@
-import { dbMaxTime, dbMergeTime } from "./db";
+import { dbDevices, dbMaxTime, dbMergeTime } from "./db";
 import { mdns } from "./mdns";
+import { subscribeDeviceAdded } from "./use-device";
 import { notifyTimeAdded } from "./use-time";
 
 export function toDiff(times: number[]) {
@@ -52,6 +53,13 @@ async function sync(device_uid: string) {
   }
 }
 
+// TODO: updating DbDevice.last_sync should update ui, but should not cause sync
+async function syncAll() {
+  for (const device of await dbDevices()) {
+    await sync(device.uid);
+  }
+}
+
 // TODO: request all devices from all devices
 // TODO: DbDevice.last_sync
 export function useSync() {
@@ -59,3 +67,6 @@ export function useSync() {
     sync,
   };
 }
+
+mdns.on(syncAll);
+subscribeDeviceAdded(syncAll);
