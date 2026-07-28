@@ -20,19 +20,13 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  dbDevices,
-  dbRemoveDevice,
-  dbSelectTimeRange,
-  dbUpsertDevice,
-  thisDeviceUid,
-} from "./src/db";
+import { dbSelectTimeRange, thisDeviceUid } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
 import * as Mdns from "./src/mdns";
 import { useAddTime, useTimeRange } from "./src/use-time";
-import { cmp } from "./src/cmp";
 import { UncontrolledTextInput } from "ink-text-input";
+import { useDbDevices } from "./src/use-device";
 
 const port = 8087;
 
@@ -231,56 +225,6 @@ function multiGet<T>(xss: T[][], i: number) {
   throw new Error();
 }
 
-function cmpDevice<T extends { uid: string }>(a: T, b: T) {
-  return cmp(a.uid, b.uid);
-}
-// TODO: move up, needed for sync
-function useDbDevices() {
-  const [state, setState] = useState({
-    read_nonce: 0,
-    devices: [] as { uid: string; name: string }[],
-    upsert: null as { uid: string; name: string } | null,
-    remove: null as string | null,
-  });
-  useEffect(() => {
-    dbDevices().then((devices) => {
-      setState((state) => ({ ...state, devices: devices.toSorted(cmpDevice) }));
-    });
-  }, [state.read_nonce]);
-  useEffect(() => {
-    const { upsert } = state;
-    if (upsert === null) return;
-    dbUpsertDevice(upsert.uid, upsert.name)
-      .then(() =>
-        setState((state) => ({
-          ...state,
-          upsert: null,
-          read_nonce: state.read_nonce + 1,
-        }))
-      );
-  }, [state.upsert]);
-  useEffect(() => {
-    const { remove } = state;
-    if (remove === null) return;
-    dbRemoveDevice(remove)
-      .then(() =>
-        setState((state) => ({
-          ...state,
-          remove: null,
-          read_nonce: state.read_nonce + 1,
-        }))
-      );
-  }, [state.remove]);
-  return {
-    devices: state.devices,
-    upsert(uid: string, name: string) {
-      setState((state) => ({ ...state, upsert: { uid, name } }));
-    },
-    remove(uid: string) {
-      setState((state) => ({ ...state, remove: uid }));
-    },
-  };
-}
 function UiDevices(props: PropOnInput) {
   const db_devices = useDbDevices();
   const [state, setState] = useState({
