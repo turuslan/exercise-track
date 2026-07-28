@@ -133,6 +133,29 @@ export async function dbMaxTime(
   return time_ms !== null ? new Date(time_ms) : null;
 }
 
+export async function dbMergeTime(device_uid: string, times: Date[]) {
+  if (times.length === 0) return [];
+  const where_device = await whereDeviceUid(device_uid);
+  if (where_device === null) return [];
+  const min = new Date(Math.min(...times.map((time) => time.getTime())));
+  const max = new Date(Math.max(...times.map((time) => time.getTime())));
+  const existing = (await dbSelectTimeRange(min, max, device_uid)).map((time) =>
+    time.getTime()
+  );
+  times = times.filter((time) => !existing.includes(time.getTime()));
+  if (times.length === 0) return [];
+  await db.manager.insert(
+    DbTime,
+    times.map((time) => {
+      const db_time = new DbTime();
+      db_time.time_ms = time.getTime();
+      db_time.device_lid = where_device.device_lid!;
+      return db_time;
+    }),
+  );
+  return times;
+}
+
 export async function thisDeviceUid() {
   await dbReady();
 

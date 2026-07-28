@@ -27,6 +27,7 @@ import * as Mdns from "./src/mdns";
 import { useAddTime, useTimeRange } from "./src/use-time";
 import { UncontrolledTextInput } from "ink-text-input";
 import { useDbDevices } from "./src/use-device";
+import { toDiff, useSync } from "./src/use-sync";
 
 const port = 8087;
 
@@ -226,6 +227,7 @@ function multiGet<T>(xss: T[][], i: number) {
 }
 
 function UiDevices(props: PropOnInput) {
+  const sync = useSync(mdns);
   const db_devices = useDbDevices();
   const [state, setState] = useState({
     selected: null as { uid: string; multi_i: number } | null,
@@ -301,6 +303,13 @@ function UiDevices(props: PropOnInput) {
       setState((state) => ({ ...state, editing: selected.uid }));
       return;
     }
+    if (input === "s") {
+      const { selected } = state;
+      if (selected === null) return;
+      if (!added_uids.includes(selected.uid)) return;
+      mdns_services;
+      sync.sync(selected.uid);
+    }
     props.onInput?.(input, key);
   });
   function arrow(uid: string) {
@@ -329,7 +338,6 @@ function UiDevices(props: PropOnInput) {
                   <UncontrolledTextInput
                     initialValue={device.name}
                     onSubmit={(name) => {
-                      console.info("onSubmit", [device.uid, name]);
                       db_devices.upsert(device.uid, name);
                       setState((state) => ({ ...state, editing: null }));
                     }}
@@ -387,7 +395,7 @@ router.get("/api/list", async (ctx) => {
   if (diff) {
     ctx.body = { times };
   } else {
-    const times_diff = times.map((x, i, xs) => i === 0 ? x : x - xs[i - 1]);
+    const times_diff = toDiff(times);
     ctx.body = { times_diff };
   }
 });
