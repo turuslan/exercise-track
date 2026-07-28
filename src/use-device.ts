@@ -16,10 +16,12 @@ export function useDbDevices() {
     upsert: null as { uid: string; name: string } | null,
     remove: null as string | null,
   });
-  useEffect(() =>
-    subscribe.subscribe(() =>
-      setState((state) => ({ ...state, read_nonce: state.read_nonce + 1 }))
-    )
+  useEffect(
+    () =>
+      subscribe.subscribe(() =>
+        setState((state) => ({ ...state, read_nonce: state.read_nonce + 1 }))
+      ),
+    [],
   );
   useEffect(() => {
     dbDevices().then((devices) => {
