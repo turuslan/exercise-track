@@ -27,27 +27,28 @@ import { mdns, Services } from "./src/mdns";
 import { useAddTime, useTimeRange } from "./src/use-time";
 import { UncontrolledTextInput } from "ink-text-input";
 import { useDbDevices } from "./src/use-device";
-import { toDiff, useSync } from "./src/use-sync";
+import { toDiff, useSync, wsServerSession } from "./src/use-sync";
 import { debugPort } from "./src/debug";
+import koaWs from "koa-websocket";
 
 const port = debugPort() ?? 8087;
 
 function nullMap<T, U>(value: T | null, f: (value: T) => U) {
   return value === null ? null : f(value);
 }
-function koaQuery(ctx: Koa.Context, key: string) {
+function koaQuery(ctx: Koa.ExtendableContext, key: string) {
   let value = ctx.request.query[key];
   if (Array.isArray(value)) [value] = value;
   return value ?? null;
 }
-function koaQueryInt(ctx: Koa.Context, key: string) {
+function koaQueryInt(ctx: Koa.ExtendableContext, key: string) {
   return nullMap(koaQuery(ctx, key), (s) => {
     const i = +s;
     if (isNaN(i)) throw new Error();
     return i;
   });
 }
-function koaQueryDate(ctx: Koa.Context, key: string) {
+function koaQueryDate(ctx: Koa.ExtendableContext, key: string) {
   const i = koaQueryInt(ctx, key);
   return i === null ? null : new Date(i);
 }
@@ -401,8 +402,28 @@ router.get("/api/list", async (ctx) => {
   }
 });
 
-const app = new Koa();
+const ws_router = new KoaRouter();
+ws_router.get("/ws", async (ctx, next) => {
+  const ws = ctx.websocket as WebSocket;
+  const arg_min = koaQueryDate(ctx, "min");
+  const arg_device_uid = koaQuery(ctx, "device_uid");
+  if (arg_min === null) {
+    ws.send(`missing "min" query`);
+    ws.close();
+    return;
+  }
+  if (arg_device_uid === null) {
+    ws.send(`missing "device_uid" query`);
+    ws.close();
+    return;
+  }
+  wsServerSession(ws, arg_min, arg_device_uid);
+  return next;
+});
+
+const app = koaWs(new Koa());
 app.use(router.routes());
+app.ws.use(ws_router.routes());
 const server = app.listen(port);
 
 mdns.advertise(port);

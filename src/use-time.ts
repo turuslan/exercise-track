@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { dbInsertTime, dbSelectTimeRange } from "./db";
 import { isEqual as dateEq } from "date-fns";
 import { cmp } from "./cmp";
-import { Subscribe } from "./subscribe";
+import { Subscribe, Subscriber } from "./subscribe";
 
-const subscribe = new Subscribe<Date[]>();
+type SubscribeArg = Date[];
+const subscribe = new Subscribe<SubscribeArg>();
 
-export function notifyTimeAdded(times: Date[]) {
+export function notifyTimeAdded(times: SubscribeArg) {
   subscribe.notify(times);
 }
 
@@ -41,4 +42,8 @@ export function useAddTime() {
     });
   }, [setState, state?.getTime()]);
   return useCallback((time: Date) => setState(time), [setState]);
+}
+
+export function subscribeTimeAdded(subscriber: Subscriber<SubscribeArg>) {
+  return subscribe.subscribe(subscriber);
 }

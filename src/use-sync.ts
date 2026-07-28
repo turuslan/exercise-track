@@ -1,7 +1,8 @@
-import { dbDevices, dbMaxTime, dbMergeTime } from "./db";
+import { cmp } from "./cmp";
+import { dbDevices, dbMaxTime, dbMergeTime, dbSelectTimeRange } from "./db";
 import { mdns } from "./mdns";
 import { subscribeDeviceAdded } from "./use-device";
-import { notifyTimeAdded } from "./use-time";
+import { notifyTimeAdded, subscribeTimeAdded } from "./use-time";
 
 export function toDiff(times: number[]) {
   return times.map((x, i, xs) => i === 0 ? x : x - xs[i - 1]);
@@ -56,6 +57,7 @@ async function sync(device_uid: string) {
 // TODO: updating DbDevice.last_sync should update ui, but should not cause sync
 async function syncAll() {
   for (const device of await dbDevices()) {
+    // TODO: WebSocket if not yet
     await sync(device.uid);
   }
 }
@@ -66,6 +68,36 @@ export function useSync() {
   return {
     sync,
   };
+}
+
+// TODO: re-subscribe message {device_uid,min}[] instead of query
+export async function wsServerSession(
+  ws: WebSocket,
+  min: Date,
+  device_uid: string,
+) {
+  function send(times: Date[]) {
+    ws.send(
+      JSON.stringify({
+        times: times.map((time) => time.getTime()).sort(cmp),
+      }),
+    );
+  }
+  let queue: Date[][] = [];
+  const unsubscribe = subscribeTimeAdded((times) => {
+    if (queue !== null) {
+      queue.push(times);
+    } else {
+      send(times);
+    }
+  });
+  const times = await dbSelectTimeRange(min, new Date(), device_uid);
+  send(times);
+  for (const times of queue) {
+    send(times);
+  }
+  queue = null!;
+  ws.onclose = () => unsubscribe();
 }
 
 mdns.on(syncAll);
