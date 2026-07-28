@@ -1,4 +1,3 @@
-import { cmp } from "./cmp";
 import { dbDevices, dbMaxTime, dbMergeTime, dbSelectTimeRange } from "./db";
 import { mdns } from "./mdns";
 import { mapGroup, TimesByDevice } from "./types";
@@ -23,6 +22,19 @@ export function toDiffGroup(group: TimesByDevice) {
 function fromDiffGroup(group: TimesByDevice) {
   return mapGroup(group, (uid, times) => [uid, fromDiff(times)]);
 }
+export function toResponse(times: TimesByDevice) {
+  const diff = false;
+  if (diff) {
+    return { times_diff: toDiffGroup(times) };
+  }
+  return { times };
+}
+function fromResponse(
+  res: { times: TimesByDevice; times_diff: TimesByDevice },
+) {
+  if (res.times_diff) return fromDiffGroup(res.times_diff);
+  return res.times;
+}
 
 const syncing = new Set<string>();
 
@@ -40,11 +52,7 @@ async function syncLocked(device_uid: string) {
   if (!res.ok) {
     return;
   }
-  const jres = await res.json() as {
-    times: TimesByDevice;
-    times_diff: TimesByDevice;
-  };
-  const times = jres.times_diff ? fromDiffGroup(jres.times_diff) : jres.times;
+  const times = fromResponse(await res.json());
   const added = await dbMergeTime(device_uid, times[device_uid] ?? []);
   notifyTimeAdded({ [device_uid]: added });
 }
@@ -81,15 +89,7 @@ export async function wsServerSession(
   device_uid: string,
 ) {
   function send(times: TimesByDevice) {
-    const diff = false;
-    let body: any;
-    if (diff) {
-      body = { times };
-    } else {
-      const times_diff = toDiffGroup(times);
-      body = { times_diff };
-    }
-    ws.send(JSON.stringify({ times }));
+    ws.send(JSON.stringify(toResponse(times)));
   }
   let queue: TimesByDevice[] = [];
   const unsubscribe = subscribeTimeAdded((times) => {

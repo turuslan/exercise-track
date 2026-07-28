@@ -20,14 +20,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { dbSelectTimeRange, thisDeviceUid } from "./src/db";
+import { dbSelectTimeRange } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
 import { mdns, Services } from "./src/mdns";
 import { useAddTime, useTimeRange } from "./src/use-time";
 import { UncontrolledTextInput } from "ink-text-input";
 import { useDbDevices } from "./src/use-device";
-import { toDiffGroup, useSync, wsServerSession } from "./src/use-sync";
+import { toResponse, useSync, wsServerSession } from "./src/use-sync";
 import { debugPort } from "./src/debug";
 import koaWs from "koa-websocket";
 import { useThisDeviceUid } from "./src/use-this-device";
@@ -381,13 +381,7 @@ router.get("/api/list", async (ctx) => {
   const arg_max = koaQueryInt(ctx, "max") ?? Date.now();
   const arg_device_uid = koaQuery(ctx, "device_uid");
   const times = await dbSelectTimeRange(arg_min, arg_max, arg_device_uid);
-  const diff = false;
-  if (diff) {
-    ctx.body = { times };
-  } else {
-    const times_diff = toDiffGroup(times);
-    ctx.body = { times_diff };
-  }
+  ctx.body = toResponse(times);
 });
 
 const ws_router = new KoaRouter();
