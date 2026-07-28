@@ -1,6 +1,8 @@
 import * as TypeOrm from "typeorm";
 import * as Url from "node:url";
 import { debugDb, debugTypeormSynchronize, debugUid } from "./debug";
+import { filterGroup, mapGroup, TimesByDevice } from "./types";
+import { cmp } from "./cmp";
 
 let this_device: DbDevice = null!;
 
@@ -95,6 +97,8 @@ async function dbReady() {
 }
 
 async function whereDeviceUid(uid: string | null) {
+  await dbReady();
+
   if (uid === null) return {};
   const device = uid !== null
     ? await db.manager.findOne(DbDevice, { where: { uid } })
@@ -116,36 +120,58 @@ export async function dbSelectTimeRange(
   min: number,
   max: number,
   device_uid: string | null,
-): Promise<number[]> {
+): Promise<TimesByDevice> {
   await dbReady();
 
   const where_device = await whereDeviceUid(device_uid);
-  if (where_device === null) return [];
+  if (where_device === null) return {};
   const rows = await db.manager.find(DbTime, {
     where: {
       time_ms: TypeOrm.Between(min, max),
       ...where_device,
     },
   });
-  return rows.map((row) => row.time_ms);
+  const lid_times = Object.groupBy(
+    rows.map((row) => row.time_ms),
+    (row, i) => rows[i].device_lid,
+  ) as Record<string, number[]>;
+  const devices = await db.manager.find(DbDevice, {
+    where: { lid: TypeOrm.In(Object.keys(lid_times)) },
+  });
+  const lid_uid = Object.fromEntries(
+    devices.map((device) => [device.lid, device.uid]),
+  );
+  const group = filterGroup(
+    mapGroup(
+      lid_times,
+      (lid, times) => [lid_uid[lid] ?? null!, times.sort(cmp)],
+    ),
+    (uid) => uid !== null,
+  );
+  if (device_uid !== null) group[device_uid] ??= [];
+  return group;
 }
 
 export async function dbMaxTime(
   device_uid: string,
 ): Promise<number | null> {
+  await dbReady();
+
   const where_device = await whereDeviceUid(device_uid);
   if (where_device === null) return null;
   return await db.manager.maximum(DbTime, "time_ms");
 }
 
 export async function dbMergeTime(device_uid: string, times: number[]) {
+  await dbReady();
+
   if (times.length === 0) return [];
   const where_device = await whereDeviceUid(device_uid);
   if (where_device === null) return [];
   const min = Math.min(...times);
   const max = Math.max(...times);
   const existing = await dbSelectTimeRange(min, max, device_uid);
-  times = times.filter((time) => !existing.includes(time));
+  times = times.filter((time) => !existing[device_uid].includes(time));
   if (times.length === 0) return [];
   await db.manager.insert(
     DbTime,

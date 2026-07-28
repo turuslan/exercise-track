@@ -1,6 +1,7 @@
 import { cmp } from "./cmp";
 import { dbDevices, dbMaxTime, dbMergeTime, dbSelectTimeRange } from "./db";
 import { mdns } from "./mdns";
+import { mapGroup, TimesByDevice } from "./types";
 import { subscribeDeviceAdded } from "./use-device";
 import { notifyTimeAdded, subscribeTimeAdded } from "./use-time";
 
@@ -15,6 +16,12 @@ function fromDiff(times_diff: number[]) {
     times.push(sum);
   }
   return times;
+}
+export function toDiffGroup(group: TimesByDevice) {
+  return mapGroup(group, (uid, times) => [uid, toDiff(times)]);
+}
+function fromDiffGroup(group: TimesByDevice) {
+  return mapGroup(group, (uid, times) => [uid, fromDiff(times)]);
 }
 
 const syncing = new Set<string>();
@@ -34,12 +41,12 @@ async function syncLocked(device_uid: string) {
     return;
   }
   const jres = await res.json() as {
-    times: number[];
-    times_diff: number[];
+    times: TimesByDevice;
+    times_diff: TimesByDevice;
   };
-  const times = jres.times_diff ? fromDiff(jres.times_diff) : jres.times;
-  const added = await dbMergeTime(device_uid, times);
-  notifyTimeAdded(added);
+  const times = jres.times_diff ? fromDiffGroup(jres.times_diff) : jres.times;
+  const added = await dbMergeTime(device_uid, times[device_uid] ?? []);
+  notifyTimeAdded({ [device_uid]: added });
 }
 async function sync(device_uid: string) {
   if (syncing.has(device_uid)) return;
@@ -73,14 +80,18 @@ export async function wsServerSession(
   min: number,
   device_uid: string,
 ) {
-  function send(times: number[]) {
-    ws.send(
-      JSON.stringify({
-        times: times.sort(cmp),
-      }),
-    );
+  function send(times: TimesByDevice) {
+    const diff = false;
+    let body: any;
+    if (diff) {
+      body = { times };
+    } else {
+      const times_diff = toDiffGroup(times);
+      body = { times_diff };
+    }
+    ws.send(JSON.stringify({ times }));
   }
-  let queue: number[][] = [];
+  let queue: TimesByDevice[] = [];
   const unsubscribe = subscribeTimeAdded((times) => {
     if (queue !== null) {
       queue.push(times);

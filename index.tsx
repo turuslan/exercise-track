@@ -27,9 +27,10 @@ import { mdns, Services } from "./src/mdns";
 import { useAddTime, useTimeRange } from "./src/use-time";
 import { UncontrolledTextInput } from "ink-text-input";
 import { useDbDevices } from "./src/use-device";
-import { toDiff, useSync, wsServerSession } from "./src/use-sync";
+import { toDiffGroup, useSync, wsServerSession } from "./src/use-sync";
 import { debugPort } from "./src/debug";
 import koaWs from "koa-websocket";
+import { useThisDeviceUid } from "./src/use-this-device";
 
 const port = debugPort() ?? 8087;
 
@@ -117,14 +118,6 @@ const time_scale = time_scale_real;
 function useMdnsServices() {
   const [state, setState] = useState<Services>(mdns.services);
   useEffect(() => mdns.on(setState), [setState]);
-  return state;
-}
-
-function useThisDeviceUid() {
-  const [state, setState] = useState<string | null>(null);
-  useEffect(() => {
-    thisDeviceUid().then(setState);
-  }, []);
   return state;
 }
 
@@ -392,7 +385,7 @@ router.get("/api/list", async (ctx) => {
   if (diff) {
     ctx.body = { times };
   } else {
-    const times_diff = toDiff(times);
+    const times_diff = toDiffGroup(times);
     ctx.body = { times_diff };
   }
 });
