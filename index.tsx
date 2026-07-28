@@ -366,6 +366,10 @@ function App() {
       setState((state) => ({ ...state, devices: !state.devices }));
       return;
     }
+    if (state.devices && key.escape) {
+      setState((state) => ({ ...state, devices: false }));
+      return;
+    }
   });
   return (
     <Box flexDirection="column">
