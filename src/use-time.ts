@@ -2,15 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { dbInsertTime, dbSelectTimeRange } from "./db";
 import { isEqual as dateEq } from "date-fns";
 import { cmp } from "./cmp";
+import { Subscribe } from "./subscribe";
 
-type Subscriber = (times: Date[]) => void;
-
-const subscribers = new Set<Subscriber>();
+const subscribe = new Subscribe<Date[]>();
 
 export function notifyTimeAdded(times: Date[]) {
-  for (const subscriber of subscribers) {
-    subscriber(times);
-  }
+  subscribe.notify(times);
 }
 
 export function useTimeRange(min: Date, max: Date) {
@@ -18,7 +15,7 @@ export function useTimeRange(min: Date, max: Date) {
   useEffect(() => {
     setState(null);
     dbSelectTimeRange(min, max).then((times) => setState(times));
-    const subscriber: Subscriber = (times) =>
+    return subscribe.subscribe((times) =>
       setState((state) => {
         const added = times.filter((time) =>
           min <= time && time <= max &&
@@ -26,11 +23,8 @@ export function useTimeRange(min: Date, max: Date) {
         );
         if (added.length === 0) return state;
         return [...state ?? [], ...added].sort(cmp);
-      });
-    subscribers.add(subscriber);
-    return () => {
-      subscribers.delete(subscriber);
-    };
+      })
+    );
   }, [setState, min.getTime(), max.getTime()]);
   return state;
 }
