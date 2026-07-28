@@ -28,7 +28,7 @@ async function syncLocked(device_uid: string) {
   const api_url = new URL(`http://${address}/api/list`);
   api_url.searchParams.set("device_uid", device_uid);
   const max = await dbMaxTime(device_uid);
-  if (max !== null) api_url.searchParams.set("min", `${max.getTime()}`);
+  if (max !== null) api_url.searchParams.set("min", `${max}`);
   const res = await fetch(api_url);
   if (!res.ok) {
     return;
@@ -38,10 +38,7 @@ async function syncLocked(device_uid: string) {
     times_diff: number[];
   };
   const times = jres.times_diff ? fromDiff(jres.times_diff) : jres.times;
-  const added = await dbMergeTime(
-    device_uid,
-    times.map((time) => new Date(time)),
-  );
+  const added = await dbMergeTime(device_uid, times);
   notifyTimeAdded(added);
 }
 async function sync(device_uid: string) {
@@ -73,17 +70,17 @@ export function useSync() {
 // TODO: re-subscribe message {device_uid,min}[] instead of query
 export async function wsServerSession(
   ws: WebSocket,
-  min: Date,
+  min: number,
   device_uid: string,
 ) {
-  function send(times: Date[]) {
+  function send(times: number[]) {
     ws.send(
       JSON.stringify({
-        times: times.map((time) => time.getTime()).sort(cmp),
+        times: times.sort(cmp),
       }),
     );
   }
-  let queue: Date[][] = [];
+  let queue: number[][] = [];
   const unsubscribe = subscribeTimeAdded((times) => {
     if (queue !== null) {
       queue.push(times);
@@ -91,7 +88,7 @@ export async function wsServerSession(
       send(times);
     }
   });
-  const times = await dbSelectTimeRange(min, new Date(), device_uid);
+  const times = await dbSelectTimeRange(min, Date.now(), device_uid);
   send(times);
   for (const times of queue) {
     send(times);

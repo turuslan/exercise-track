@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { dbInsertTime, dbSelectTimeRange } from "./db";
-import { isEqual as dateEq } from "date-fns";
 import { cmp } from "./cmp";
 import { Subscribe, Subscriber } from "./subscribe";
 
-type SubscribeArg = Date[];
+type SubscribeArg = number[];
 const subscribe = new Subscribe<SubscribeArg>();
 
 export function notifyTimeAdded(times: SubscribeArg) {
   subscribe.notify(times);
 }
 
-export function useTimeRange(min: Date, max: Date) {
-  const [state, setState] = useState<Date[] | null>(null);
+export function useTimeRange(min: number, max: number) {
+  const [state, setState] = useState<number[] | null>(null);
   useEffect(() => {
     setState(null);
     dbSelectTimeRange(min, max, null).then((times) => setState(times));
@@ -20,19 +19,19 @@ export function useTimeRange(min: Date, max: Date) {
       setState((state) => {
         const added = times.filter((time) =>
           min <= time && time <= max &&
-          !state?.find((time2) => dateEq(time2, time))
+          !state?.includes(time)
         );
         if (added.length === 0) return state;
         return [...state ?? [], ...added].sort(cmp);
       })
     );
-  }, [setState, min.getTime(), max.getTime()]);
+  }, [setState, min, max]);
   return state;
 }
 
 // TODO: useOnce
 export function useAddTime() {
-  const [state, setState] = useState<Date | null>(null);
+  const [state, setState] = useState<number | null>(null);
   useEffect(() => {
     const time = state;
     if (time === null) return;
@@ -40,8 +39,8 @@ export function useAddTime() {
       notifyTimeAdded([time]);
       setState(null);
     });
-  }, [setState, state?.getTime()]);
-  return useCallback((time: Date) => setState(time), [setState]);
+  }, [setState, state]);
+  return useCallback((time: number) => setState(time), [setState]);
 }
 
 export function subscribeTimeAdded(subscriber: Subscriber<SubscribeArg>) {

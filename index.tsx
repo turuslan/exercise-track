@@ -48,10 +48,6 @@ function koaQueryInt(ctx: Koa.ExtendableContext, key: string) {
     return i;
   });
 }
-function koaQueryDate(ctx: Koa.ExtendableContext, key: string) {
-  const i = koaQueryInt(ctx, key);
-  return i === null ? null : new Date(i);
-}
 
 function roundUp(x: number, y: number) {
   return x - x % y + y;
@@ -161,8 +157,8 @@ function UiDay(props: PropOnInput & { focus: boolean }) {
   const now = new Date();
   const day = time_scale.getGroup(now);
   const times = useTimeRange(
-    time_scale.getGroup(day),
-    time_scale.nextGroup(day),
+    time_scale.getGroup(day).getTime(),
+    time_scale.nextGroup(day).getTime(),
   );
   const count = times === null ? null : times.length;
   const last = times === null ? null : arrayLast(times);
@@ -174,7 +170,7 @@ function UiDay(props: PropOnInput & { focus: boolean }) {
         last === null ||
         differenceInMilliseconds(now, last) >= DUPLICATE_TIME_MS
       ) {
-        add_time(now);
+        add_time(now.getTime());
       }
       return;
     }
@@ -191,7 +187,7 @@ function UiDay(props: PropOnInput & { focus: boolean }) {
             ".".repeat(Math.max(0, TARGET - (count ?? 0)))
           }${"+".repeat(Math.max(0, (count ?? 0) - TARGET))}]`}
         </Text>
-        {last !== null && <Text>, {time_scale.ago(last, new Date())}</Text>}
+        {last !== null && <Text>, {time_scale.ago(new Date(last), now)}</Text>}
       </Box>
     </Box>
   );
@@ -388,11 +384,10 @@ const ink = render(
 
 const router = new KoaRouter();
 router.get("/api/list", async (ctx) => {
-  const arg_min = koaQueryDate(ctx, "min") ?? new Date(0);
-  const arg_max = koaQueryDate(ctx, "max") ?? new Date();
+  const arg_min = koaQueryInt(ctx, "min") ?? 0;
+  const arg_max = koaQueryInt(ctx, "max") ?? Date.now();
   const arg_device_uid = koaQuery(ctx, "device_uid");
-  const times = (await dbSelectTimeRange(arg_min, arg_max, arg_device_uid))
-    .map((x) => x.getTime());
+  const times = await dbSelectTimeRange(arg_min, arg_max, arg_device_uid);
   const diff = false;
   if (diff) {
     ctx.body = { times };
@@ -405,7 +400,7 @@ router.get("/api/list", async (ctx) => {
 const ws_router = new KoaRouter();
 ws_router.get("/ws", async (ctx, next) => {
   const ws = ctx.websocket as WebSocket;
-  const arg_min = koaQueryDate(ctx, "min");
+  const arg_min = koaQueryInt(ctx, "min");
   const arg_device_uid = koaQuery(ctx, "device_uid");
   if (arg_min === null) {
     ws.send(`missing "min" query`);

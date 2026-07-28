@@ -103,58 +103,55 @@ async function whereDeviceUid(uid: string | null) {
   return { device_lid: device.lid };
 }
 
-export async function dbInsertTime(time: Date) {
+export async function dbInsertTime(time: number) {
   await dbReady();
 
   const row = new DbTime();
-  row.time_ms = time.getTime();
+  row.time_ms = time;
   row.device_lid = this_device.lid;
   await db.manager.insert(DbTime, row);
 }
 
 export async function dbSelectTimeRange(
-  min: Date,
-  max: Date,
+  min: number,
+  max: number,
   device_uid: string | null,
-): Promise<Date[]> {
+): Promise<number[]> {
   await dbReady();
 
   const where_device = await whereDeviceUid(device_uid);
   if (where_device === null) return [];
   const rows = await db.manager.find(DbTime, {
     where: {
-      time_ms: TypeOrm.Between(min.getTime(), max.getTime()),
+      time_ms: TypeOrm.Between(min, max),
       ...where_device,
     },
   });
-  return rows.map((row) => new Date(row.time_ms));
+  return rows.map((row) => row.time_ms);
 }
 
 export async function dbMaxTime(
   device_uid: string,
-): Promise<Date | null> {
+): Promise<number | null> {
   const where_device = await whereDeviceUid(device_uid);
   if (where_device === null) return null;
-  const time_ms = await db.manager.maximum(DbTime, "time_ms");
-  return time_ms !== null ? new Date(time_ms) : null;
+  return await db.manager.maximum(DbTime, "time_ms");
 }
 
-export async function dbMergeTime(device_uid: string, times: Date[]) {
+export async function dbMergeTime(device_uid: string, times: number[]) {
   if (times.length === 0) return [];
   const where_device = await whereDeviceUid(device_uid);
   if (where_device === null) return [];
-  const min = new Date(Math.min(...times.map((time) => time.getTime())));
-  const max = new Date(Math.max(...times.map((time) => time.getTime())));
-  const existing = (await dbSelectTimeRange(min, max, device_uid)).map((time) =>
-    time.getTime()
-  );
-  times = times.filter((time) => !existing.includes(time.getTime()));
+  const min = Math.min(...times);
+  const max = Math.max(...times);
+  const existing = await dbSelectTimeRange(min, max, device_uid);
+  times = times.filter((time) => !existing.includes(time));
   if (times.length === 0) return [];
   await db.manager.insert(
     DbTime,
     times.map((time) => {
       const db_time = new DbTime();
-      db_time.time_ms = time.getTime();
+      db_time.time_ms = time;
       db_time.device_lid = where_device.device_lid!;
       return db_time;
     }),
