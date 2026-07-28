@@ -119,7 +119,7 @@ export async function dbDevices() {
     DbDevice,
     { where: { uid: TypeOrm.Not(this_device.uid) } },
   );
-  return devices.map((device) => ({ uid: device.uid, name: device.uid }));
+  return devices.map((device) => ({ uid: device.uid, name: device.name }));
 }
 
 export async function dbUpsertDevice(uid: string, name: string) {

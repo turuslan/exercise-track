@@ -32,6 +32,7 @@ import KoaRouter from "@koa/router";
 import * as Mdns from "./src/mdns";
 import { useAddTime, useTimeRange } from "./src/use-time";
 import { cmp } from "./src/cmp";
+import { UncontrolledTextInput } from "ink-text-input";
 
 const port = 8087;
 
@@ -284,7 +285,7 @@ function UiDevices(props: PropOnInput) {
   const db_devices = useDbDevices();
   const [state, setState] = useState({
     selected: null as { uid: string; multi_i: number } | null,
-    // TODO: editing
+    editing: null as string | null,
   });
   const this_device_uid = useThisDeviceUid();
   const mdns_services = useMdnsServices();
@@ -320,7 +321,13 @@ function UiDevices(props: PropOnInput) {
       return state;
     }), [state.selected, added_uids, unknown_uids]);
   useInput((input, key) => {
-    // TODO: editing
+    if (state.editing !== null) {
+      if (key.escape) {
+        setState((state) => ({ ...state, editing: null }));
+        return;
+      }
+      return;
+    }
     if (key.upArrow || key.downArrow) {
       if (state.selected === null) return;
       const delta = key.upArrow ? -1 : +1;
@@ -343,6 +350,13 @@ function UiDevices(props: PropOnInput) {
       db_devices.remove(selected.uid);
       return;
     }
+    if (input === "e") {
+      const { selected } = state;
+      if (selected === null) return;
+      if (!added_uids.includes(selected.uid)) return;
+      setState((state) => ({ ...state, editing: selected.uid }));
+      return;
+    }
     props.onInput?.(input, key);
   });
   function arrow(uid: string) {
@@ -362,8 +376,24 @@ function UiDevices(props: PropOnInput) {
             <Text>
               {`${arrow(device.uid)} ${
                 device.uid in mdns_services ? "+" : "-"
-              } ${device.uid} "${device.name}"`}
+              } ${device.uid} `}
             </Text>
+            {device.uid === state.editing
+              ? (
+                <>
+                  <Text inverse>[</Text>
+                  <UncontrolledTextInput
+                    initialValue={device.name}
+                    onSubmit={(name) => {
+                      console.info("onSubmit", [device.uid, name]);
+                      db_devices.upsert(device.uid, name);
+                      setState((state) => ({ ...state, editing: null }));
+                    }}
+                  />
+                  <Text inverse>]</Text>
+                </>
+              )
+              : <Text>"{device.name}"</Text>}
           </Box>
         ))}
       <Box>
