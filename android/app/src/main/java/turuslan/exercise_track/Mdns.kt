@@ -7,10 +7,11 @@ import android.net.wifi.WifiManager
 import androidx.compose.runtime.mutableStateMapOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 
 
-class Mdns(context: Context, scope: CoroutineScope) {
+class Mdns(context: Context, val scope: CoroutineScope) {
     val mdnsType = "_exercise-track._tcp"
     val devices = mutableStateMapOf<String, String>()
     val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
@@ -48,6 +49,7 @@ class Mdns(context: Context, scope: CoroutineScope) {
     }
     val resolveReq = Channel<NsdServiceInfo>()
     val resolveRes = Channel<Unit>()
+    val flow = MutableSharedFlow<Unit>()
 
     suspend fun resolve(service: NsdServiceInfo) {
         nsd.resolveService(service, resolveListener)
@@ -73,10 +75,12 @@ class Mdns(context: Context, scope: CoroutineScope) {
 
     fun add(deviceUid: String, address: String) {
         devices[deviceUid] = address
+        scope.launch { flow.emit(Unit) }
     }
 
     fun remove(deviceUid: String) {
         devices.remove(deviceUid)
+        scope.launch { flow.emit(Unit) }
     }
 }
 
