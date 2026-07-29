@@ -13,10 +13,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -24,6 +26,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import turuslan.exercise_track.ui.theme.ExerciseTrackTheme
 import kotlin.math.max
 import kotlin.math.min
@@ -37,8 +40,8 @@ class MainActivity : ComponentActivity() {
             ExerciseTrackTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Column(modifier = Modifier.padding(innerPadding)) {
-                        val count = remember { mutableStateOf<Int?>(0) }
-                        UiDay(count, modifier = padding)
+                        val times = remember { mutableStateListOf<Time>() }
+                        UiDay(times, modifier = padding)
                         UiDevices(modifier = padding)
                     }
                 }
@@ -84,18 +87,36 @@ fun UiDevices(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun UiDay(count: MutableState<Int?>, modifier: Modifier = Modifier) {
+fun UiDay(times: SnapshotStateList<Time>, modifier: Modifier = Modifier) {
     val target = 10
     val fontSize = 32.sp
-    val countInt = count.value ?: 0
-    val bar1 = "#".repeat(min(countInt, target))
-    val bar2 = ".".repeat(max(target - countInt, 0))
-    val bar3 = "+".repeat(max(countInt - target, 0))
+    val count = times.size
+    val bar1 = "#".repeat(min(count, target))
+    val bar2 = ".".repeat(max(target - count, 0))
+    val bar3 = "+".repeat(max(count - target, 0))
     val ago = "??:?? ago"
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        flowTimeAdded.collect { devices ->
+            devices.forEach { (_, deviceTimes) ->
+                deviceTimes.forEach {
+                    if (!times.contains(it)) {
+                        times.add(it)
+                    }
+                }
+            }
+        }
+    }
     Column(modifier = modifier) {
-        Button(onClick = { count.value = countInt + 1 }, shape = RoundedCornerShape(1.dp)) {
+        Button(
+            onClick = {
+                scope.launch {
+                    flowTimeAdded.emit(mapOf(Pair("_android", listOf(times.max() + 1L))))
+                }
+            }, shape = RoundedCornerShape(1.dp)
+        ) {
             Text(
-                "${count.value ?: "??"}/$target $ago\n[$bar1$bar2$bar3]",
+                "$count/$target $ago\n[$bar1$bar2$bar3]",
                 fontFamily = FontFamily.Monospace,
                 lineHeight = fontSize,
                 fontSize = fontSize,
@@ -103,14 +124,13 @@ fun UiDay(count: MutableState<Int?>, modifier: Modifier = Modifier) {
             )
         }
     }
-
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, widthDp = 340, heightDp = 600)
 @Composable
 fun GreetingPreview() {
-    val count = remember { mutableStateOf<Int?>(3) }
+    val times = remember { mutableStateListOf(100L, 200L, 300L) }
     ExerciseTrackTheme {
-        UiDay(count)
+        UiDay(times)
     }
 }

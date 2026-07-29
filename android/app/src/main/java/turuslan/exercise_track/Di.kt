@@ -2,8 +2,11 @@ package turuslan.exercise_track
 
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+
+val flowTimeAdded = MutableSharedFlow<TimesByDevice>()
 
 class Di(context: Context, scope: CoroutineScope) {
     val mdns = Mdns(context, scope)

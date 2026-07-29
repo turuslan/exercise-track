@@ -54,7 +54,8 @@ class Sync(val scope: CoroutineScope) {
             for (frame in ws.incoming) {
                 val times = fromResponse(json.decodeFromString((frame as Frame.Text).readText()))
                 // TODO: dbMergeTimeMany
-                // TODO: notifyTimeAdded
+                val added = times
+                flowTimeAdded.emit(added)
             }
             wss.remove(deviceUid)
         }
