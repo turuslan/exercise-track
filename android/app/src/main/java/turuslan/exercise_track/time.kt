@@ -4,6 +4,10 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
+typealias Time = Long
+typealias TimeByDevice = Map<String, Time>
+typealias TimesByDevice = Map<String, List<Time>>
+
 val timeZone = ZoneId.systemDefault()!!
 
 fun timeNow(): Time {

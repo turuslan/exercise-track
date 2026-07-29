@@ -49,7 +49,6 @@ class Mdns(context: Context, val scope: CoroutineScope) {
     }
     val resolveReq = Channel<NsdServiceInfo>()
     val resolveRes = Channel<Unit>()
-    val flow = MutableSharedFlow<Unit>()
 
     suspend fun resolve(service: NsdServiceInfo) {
         nsd.resolveService(service, resolveListener)
@@ -75,12 +74,12 @@ class Mdns(context: Context, val scope: CoroutineScope) {
 
     fun add(deviceUid: String, address: String) {
         devices[deviceUid] = address
-        scope.launch { flow.emit(Unit) }
+        scope.launch { flowMdns.emit(Unit) }
     }
 
     fun remove(deviceUid: String) {
         devices.remove(deviceUid)
-        scope.launch { flow.emit(Unit) }
+        scope.launch { flowMdns.emit(Unit) }
     }
 }
 
