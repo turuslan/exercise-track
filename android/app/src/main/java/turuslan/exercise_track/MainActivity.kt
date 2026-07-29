@@ -31,7 +31,7 @@ import kotlin.math.min
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (_mdns == null) _mdns = Mdns(applicationContext, lifecycleScope)
+        if (_di == null) _di = Di(applicationContext, lifecycleScope)
         setContent {
             val padding = Modifier.padding(8.dp)
             ExerciseTrackTheme {

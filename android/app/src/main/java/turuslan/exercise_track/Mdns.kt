@@ -84,5 +84,4 @@ class Mdns(context: Context, val scope: CoroutineScope) {
     }
 }
 
-var _mdns: Mdns? = null
-val mdns get() = _mdns!!
+val mdns get() = di.mdns
