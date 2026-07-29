@@ -43,6 +43,10 @@ fun differenceInUnits(time2: Time, time1: Time, unit: ChronoUnit): Long {
     return Instant.ofEpochMilli(time1).until(Instant.ofEpochMilli(time2), unit)
 }
 
+fun differenceInMilliseconds(time2: Time, time1: Time): Long {
+    return differenceInUnits(time2, time1, ChronoUnit.MILLIS)
+}
+
 fun differenceInSeconds(time2: Time, time1: Time): Long {
     return differenceInUnits(time2, time1, ChronoUnit.SECONDS)
 }

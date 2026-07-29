@@ -14,6 +14,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableLongState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,10 +29,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import turuslan.exercise_track.ui.theme.ExerciseTrackTheme
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.time.Duration.Companion.milliseconds
+
+const val DUPLICATE_TIME_MS = 5000
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,9 +94,15 @@ fun UiDevices(modifier: Modifier = Modifier) {
 
 @Composable
 fun UiDayWrap(modifier: Modifier = Modifier) {
-    val now = timeNow()
-    val min = time_scale.getGroup(now)
-    val max = time_scale.nextGroup(now)
+    val now = remember { mutableLongStateOf(timeNow()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now.longValue = timeNow()
+            delay((time_scale.nextTick(now.longValue) - now.longValue).milliseconds)
+        }
+    }
+    val min = remember { derivedStateOf { time_scale.getGroup(now.longValue) } }
+    val max = remember { derivedStateOf { time_scale.nextGroup(now.longValue) } }
     // TODO: db
     val times = remember { mutableStateListOf<Time>() }
     val scope = rememberCoroutineScope()
@@ -98,25 +111,28 @@ fun UiDayWrap(modifier: Modifier = Modifier) {
             devices.values.forEach {
                 for (time in it) {
                     if (times.contains(time)) continue
-                    if (time !in min..max) continue
+                    if (time !in min.value..max.value) continue
                     times.add(time)
                 }
                 times.sort()
             }
         }
     }
-    UiDay(times, modifier) {
-        val time = timeNow()
+    UiDay(times, now, modifier) {
         scope.launch {
             // TODO: db
-            flowTimeAdded.emit(mapOf(Pair("_android", listOf(time))))
+            flowTimeAdded.emit(mapOf(Pair("_android", listOf(it))))
         }
     }
 }
 
 @Composable
-fun UiDay(times: SnapshotStateList<Time>, modifier: Modifier = Modifier, addTime: () -> Unit = {}) {
-    val now = timeNow()
+fun UiDay(
+    times: SnapshotStateList<Time>,
+    now: MutableLongState,
+    modifier: Modifier = Modifier,
+    addTime: (Time) -> Unit = {}
+) {
     val target = 10
     val fontSize = 32.sp
     val count = times.size
@@ -124,10 +140,15 @@ fun UiDay(times: SnapshotStateList<Time>, modifier: Modifier = Modifier, addTime
     val bar1 = "#".repeat(min(count, target))
     val bar2 = ".".repeat(max(target - count, 0))
     val bar3 = "+".repeat(max(count - target, 0))
-    val ago = last?.let { time_scale.ago(it, now) } ?: ""
+    val ago = last?.let { time_scale.ago(it, now.longValue) } ?: ""
     Column(modifier = modifier) {
         Button(
-            onClick = addTime,
+            onClick = {
+                val time = timeNow()
+                if (last?.let { DUPLICATE_TIME_MS <= differenceInMilliseconds(time, it) } ?: true) {
+                    addTime(time)
+                }
+            },
             shape = RoundedCornerShape(1.dp),
         ) {
             Text(
@@ -145,7 +166,8 @@ fun UiDay(times: SnapshotStateList<Time>, modifier: Modifier = Modifier, addTime
 @Composable
 fun GreetingPreview() {
     val times = remember { mutableStateListOf(100L, 200L, 300L) }
+    val now = remember { mutableLongStateOf(0) }
     ExerciseTrackTheme {
-        UiDay(times)
+        UiDay(times, now)
     }
 }
