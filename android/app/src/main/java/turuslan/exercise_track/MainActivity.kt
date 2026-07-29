@@ -62,6 +62,9 @@ fun UiDevices(modifier: Modifier = Modifier) {
 
     val thisDeviceUid = remember { mutableStateOf<String?>(null) }
     val dbDevices = remember { mutableStateListOf<Device>() }
+    LaunchedEffect(Unit) {
+        thisDeviceUid.value = dbThisDeviceUid()
+    }
     Column(modifier = modifier) {
         Text("this device uid: ${thisDeviceUid.value ?: "???"}")
         Text("added devices:")
