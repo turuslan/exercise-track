@@ -40,8 +40,7 @@ class MainActivity : ComponentActivity() {
             ExerciseTrackTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Column(modifier = Modifier.padding(innerPadding)) {
-                        val times = remember { mutableStateListOf<Time>() }
-                        UiDay(times, modifier = padding)
+                        UiDayWrap(modifier = padding)
                         UiDevices(modifier = padding)
                     }
                 }
@@ -87,33 +86,49 @@ fun UiDevices(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun UiDay(times: SnapshotStateList<Time>, modifier: Modifier = Modifier) {
-    val target = 10
-    val fontSize = 32.sp
-    val count = times.size
-    val bar1 = "#".repeat(min(count, target))
-    val bar2 = ".".repeat(max(target - count, 0))
-    val bar3 = "+".repeat(max(count - target, 0))
-    val ago = "??:?? ago"
+fun UiDayWrap(modifier: Modifier = Modifier) {
+    val now = timeNow()
+    val min = time_scale.getGroup(now)
+    val max = time_scale.nextGroup(now)
+    // TODO: db
+    val times = remember { mutableStateListOf<Time>() }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         flowTimeAdded.collect { devices ->
-            devices.forEach { (_, deviceTimes) ->
-                deviceTimes.forEach {
-                    if (!times.contains(it)) {
-                        times.add(it)
-                    }
+            devices.values.forEach {
+                for (time in it) {
+                    if (times.contains(time)) continue
+                    if (time !in min..max) continue
+                    times.add(time)
                 }
+                times.sort()
             }
         }
     }
+    UiDay(times, modifier) {
+        val time = timeNow()
+        scope.launch {
+            // TODO: db
+            flowTimeAdded.emit(mapOf(Pair("_android", listOf(time))))
+        }
+    }
+}
+
+@Composable
+fun UiDay(times: SnapshotStateList<Time>, modifier: Modifier = Modifier, addTime: () -> Unit = {}) {
+    val now = timeNow()
+    val target = 10
+    val fontSize = 32.sp
+    val count = times.size
+    val last = times.lastOrNull()
+    val bar1 = "#".repeat(min(count, target))
+    val bar2 = ".".repeat(max(target - count, 0))
+    val bar3 = "+".repeat(max(count - target, 0))
+    val ago = last?.let { time_scale.ago(it, now) } ?: ""
     Column(modifier = modifier) {
         Button(
-            onClick = {
-                scope.launch {
-                    flowTimeAdded.emit(mapOf(Pair("_android", listOf(times.max() + 1L))))
-                }
-            }, shape = RoundedCornerShape(1.dp)
+            onClick = addTime,
+            shape = RoundedCornerShape(1.dp),
         ) {
             Text(
                 "$count/$target $ago\n[$bar1$bar2$bar3]",
