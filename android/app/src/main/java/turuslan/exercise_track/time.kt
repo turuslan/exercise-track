@@ -24,7 +24,7 @@ fun mapInstant(time: Time, f: (Instant) -> Instant): Time {
 
 fun startOfUnit(time: Time, unit: ChronoUnit): Time {
     assert(unit.duration <= ChronoUnit.DAYS.duration)
-    return mapInstant(time) { it.atZone(timeZone).truncatedTo(ChronoUnit.DAYS).toInstant() }
+    return mapInstant(time) { it.atZone(timeZone).truncatedTo(unit).toInstant() }
 }
 
 fun startOfSecond(time: Time): Time {
