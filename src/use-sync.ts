@@ -4,10 +4,9 @@ import {
   dbMergeTimeMany,
   dbSelectTimeRangeMany,
 } from "./db";
-import { eventMdnsChange, eventTimesAdded } from "./events";
+import { eventDevicesChange, eventMdnsChange, eventTimesAdded } from "./events";
 import { mdns } from "./mdns";
 import { filterGroup, mapGroup, TimeByDevice, TimesByDevice } from "./types";
-import { subscribeDeviceAdded } from "./use-device";
 
 function getAddress(device_uid: string) {
   return mdns.services[device_uid] ?? null;
@@ -135,4 +134,4 @@ export async function wsServerSession(ws: WebSocket) {
 }
 
 eventMdnsChange.subscribe(syncAll);
-subscribeDeviceAdded(syncAll);
+eventDevicesChange.subscribe(syncAll);

@@ -4,3 +4,5 @@ import { TimesByDevice } from "./types";
 export const eventMdnsChange = new Subscribe<void>();
 
 export const eventTimesAdded = new Subscribe<TimesByDevice>();
+
+export const eventDevicesChange = new Subscribe<void>();

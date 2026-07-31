@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { dbDevices, dbRemoveDevice, dbUpsertDevice } from "./db";
 import { cmp } from "./cmp";
-import { Subscribe, Subscriber } from "./subscribe";
-
-const subscribe = new Subscribe<void>();
+import { eventDevicesChange } from "./events";
 
 function cmpDevice<T extends { uid: string }>(a: T, b: T) {
   return cmp(a.uid, b.uid);
@@ -18,7 +16,7 @@ export function useDbDevices() {
   });
   useEffect(
     () =>
-      subscribe.subscribe(() =>
+      eventDevicesChange.subscribe(() =>
         setState((state) => ({ ...state, read_nonce: state.read_nonce + 1 }))
       ),
     [],
@@ -32,7 +30,7 @@ export function useDbDevices() {
     const { upsert } = state;
     if (upsert === null) return;
     dbUpsertDevice(upsert.uid, upsert.name).then(() => {
-      subscribe.notify();
+      eventDevicesChange.notify();
       setState((state) => ({ ...state, upsert: null }));
     });
   }, [state.upsert]);
@@ -40,7 +38,7 @@ export function useDbDevices() {
     const { remove } = state;
     if (remove === null) return;
     dbRemoveDevice(remove).then(() => {
-      subscribe.notify();
+      eventDevicesChange.notify();
       setState((state) => ({ ...state, remove: null }));
     });
   }, [state.remove]);
@@ -53,8 +51,4 @@ export function useDbDevices() {
       setState((state) => ({ ...state, remove: uid }));
     },
   };
-}
-
-export function subscribeDeviceAdded(subscriber: Subscriber<void>) {
-  return subscribe.subscribe(subscriber);
 }
