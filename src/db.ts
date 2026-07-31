@@ -108,13 +108,14 @@ async function dbReady() {
   await _db_ready;
 }
 
-export async function dbInsertTime(time: Time) {
+export async function dbInsertTime(time: Time): Promise<TimesByDevice> {
   await dbReady();
 
   const row = new DbTime();
   row.time = time;
   row.device_lid = this_device.lid;
   await db.manager.insert(DbTime, row);
+  return { [this_device.uid]: [time] };
 }
 
 export async function dbSelectTimeRange(
