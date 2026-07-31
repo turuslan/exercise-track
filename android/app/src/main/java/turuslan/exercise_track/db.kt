@@ -52,7 +52,7 @@ interface DbDao {
     @Query("""SELECT * FROM DbDevice WHERE uid = :uid""")
     suspend fun deviceByUid(uid: String): DbDevice?
 
-    @Query("""SELECT * FROM DbDevice WHERE uid != :thisDeviceUid AND enabled""")
+    @Query("""SELECT * FROM DbDevice WHERE uid != :thisDeviceUid AND enabled ORDER BY uid ASC""")
     suspend fun devices(thisDeviceUid: String): List<DbDevice>
 
     @Upsert

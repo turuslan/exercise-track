@@ -58,17 +58,18 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun UiDevices(modifier: Modifier = Modifier) {
-    data class Device(val uid: String)
-
+    val scope = rememberCoroutineScope()
     val thisDeviceUid = remember { mutableStateOf<String?>(null) }
-    val dbDevices = remember { mutableStateListOf<Device>() }
+    val dbDevices = remember { mutableStateOf(listOf<DbDevice>()) }
     LaunchedEffect(Unit) {
         thisDeviceUid.value = dbThisDeviceUid()
+        dbDevices.value = dbDevices()
+        eventDevicesChange.collect { dbDevices.value = dbDevices() }
     }
     Column(modifier = modifier) {
         Text("this device uid: ${thisDeviceUid.value ?: "???"}")
         Text("added devices:")
-        for (device in dbDevices) {
+        for (device in dbDevices.value) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val onOff = if (mdns.devices.contains(device.uid)) {
                     "+"
@@ -77,18 +78,23 @@ fun UiDevices(modifier: Modifier = Modifier) {
                 }
                 Text("$onOff ${device.uid}", modifier = Modifier.weight(1f))
                 Button({
-                    dbDevices.remove(device)
+                    scope.launch {
+                        dbRemoveDevice(device.uid)
+                        eventDevicesChange.emit(Unit)
+                    }
                 }) { Text("-") }
             }
         }
         Text("unknown devices:")
         for (deviceUid in mdns.devices.keys.sorted()) {
-            if (dbDevices.find { d -> d.uid == deviceUid } != null) continue
+            if (dbDevices.value.find { d -> d.uid == deviceUid } != null) continue
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(deviceUid, modifier = Modifier.weight(1f))
                 Button({
-                    dbDevices.add(Device(deviceUid))
-                    dbDevices.sortBy { it.uid }
+                    scope.launch {
+                        dbUpsertDevice(deviceUid, deviceUid)
+                        eventDevicesChange.emit(Unit)
+                    }
                 }) { Text("+") }
             }
         }

@@ -8,9 +8,10 @@ import kotlinx.serialization.json.Json
 
 val flowTimeAdded = MutableSharedFlow<TimesByDevice>()
 val flowMdns = MutableSharedFlow<Unit>()
+val eventDevicesChange = MutableSharedFlow<Unit>()
 
 class Di(context: Context, scope: CoroutineScope) {
-    val db = Db.make(context,scope)
+    val db = Db.make(context, scope)
     val dao = db.dao()
     val mdns = Mdns(context, scope)
     val sync = Sync(scope)
