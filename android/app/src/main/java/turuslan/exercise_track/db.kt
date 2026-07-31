@@ -192,7 +192,7 @@ suspend fun dbMergeTime(deviceUid: DeviceUid, times: List<Time>): List<Time> {
     val device = di.dao.deviceByUid(deviceUid) ?: return listOf()
     if (!device.enabled) return listOf()
     val existing = dbSelectTimeRange(times.min(), times.max(), deviceUid)[deviceUid]!!
-    val times = times.filter { existing.contains(it) }
+    val times = times.filter { !existing.contains(it) }
     if (times.isEmpty()) return listOf()
     di.dao.timeInsert(times.map { DbTime(it, device.lid) })
     return times

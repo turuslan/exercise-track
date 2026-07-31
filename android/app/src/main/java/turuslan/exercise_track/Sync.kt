@@ -36,7 +36,7 @@ fun fromResponse(res: TimesResponse): TimesByDevice {
 }
 
 class Sync(val scope: CoroutineScope) {
-    val wss = mutableMapOf<DeviceUid, WebSocketSession>()
+    val wss = mutableMapOf<DeviceUid, WebSocketSession?>()
     val client = HttpClient(CIO) {
         install(WebSockets)
     }
@@ -44,29 +44,25 @@ class Sync(val scope: CoroutineScope) {
     suspend fun openWs(deviceUid: DeviceUid) {
         if (wss.contains(deviceUid)) return
         val address = mdns.devices[deviceUid] ?: return
+        wss[deviceUid] = null
         client.webSocket("ws://$address/ws") {
             val ws = this
             if (wss.contains(deviceUid)) return@webSocket
             wss[deviceUid] = ws
-            // TODO: max
-            val devices = mapOf(Pair(deviceUid, 0))
+            val devices = dbMaxTimeAll()
             ws.send(Frame.Text(json.encodeToString(devices)))
             for (frame in ws.incoming) {
                 val times = fromResponse(json.decodeFromString((frame as Frame.Text).readText()))
-                // TODO: dbMergeTimeMany
-                val added = times
+                val added = dbMergeTimeMany(times)
                 eventTimeAdded.emit(added)
             }
             wss.remove(deviceUid)
         }
     }
 
-    fun syncAll() {
-        // TODO: db devices
-        val devices = listOf("_debug1001")
-
-        for (deviceUid in devices) {
-            scope.launch { openWs(deviceUid) }
+    suspend fun syncAll() {
+        for (device in dbDevices()) {
+            scope.launch { openWs(device.uid) }
         }
     }
 }
