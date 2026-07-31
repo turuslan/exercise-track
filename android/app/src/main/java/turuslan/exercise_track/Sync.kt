@@ -36,12 +36,12 @@ fun fromResponse(res: TimesResponse): TimesByDevice {
 }
 
 class Sync(val scope: CoroutineScope) {
-    val wss = mutableMapOf<String, WebSocketSession>()
+    val wss = mutableMapOf<DeviceUid, WebSocketSession>()
     val client = HttpClient(CIO) {
         install(WebSockets)
     }
 
-    suspend fun openWs(deviceUid: String) {
+    suspend fun openWs(deviceUid: DeviceUid) {
         if (wss.contains(deviceUid)) return
         val address = mdns.devices[deviceUid] ?: return
         client.webSocket("ws://$address/ws") {

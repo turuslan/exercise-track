@@ -17,7 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 
-fun makeUid(): String {
+fun makeUid(): DeviceUid {
     return "_${(0x100000000 * Math.random()).toLong()}"
 }
 
@@ -30,7 +30,7 @@ data class DbKv(
 @Entity(indices = [Index(value = ["uid"], unique = true)])
 data class DbDevice(
     @PrimaryKey(autoGenerate = true) val lid: Int,
-    val uid: String,
+    val uid: DeviceUid,
     val name: String,
     val enabled: Boolean,
 )
@@ -50,10 +50,10 @@ interface DbDao {
     suspend fun kvSet(kv: DbKv)
 
     @Query("""SELECT * FROM DbDevice WHERE uid = :uid""")
-    suspend fun deviceByUid(uid: String): DbDevice?
+    suspend fun deviceByUid(uid: DeviceUid): DbDevice?
 
     @Query("""SELECT * FROM DbDevice WHERE uid != :thisDeviceUid AND enabled ORDER BY uid ASC""")
-    suspend fun devices(thisDeviceUid: String): List<DbDevice>
+    suspend fun devices(thisDeviceUid: DeviceUid): List<DbDevice>
 
     @Upsert
     suspend fun deviceUpsert(device: DbDevice)
@@ -120,7 +120,7 @@ abstract class Db : RoomDatabase() {
     }
 }
 
-suspend fun dbThisDeviceUid(): String {
+suspend fun dbThisDeviceUid(): DeviceUid {
     di.db.ready()
 
     return di.db.thisDevice!!.uid
@@ -132,13 +132,13 @@ suspend fun dbDevices(): List<DbDevice> {
     return di.dao.devices(di.db.thisDevice!!.uid).sortedBy { it.uid }
 }
 
-suspend fun dbUpsertDevice(uid: String, name: String) {
+suspend fun dbUpsertDevice(uid: DeviceUid, name: String) {
     di.db.ready()
 
     di.dao.deviceUpsert(DbDevice(0, uid, name, true))
 }
 
-suspend fun dbRemoveDevice(uid: String) {
+suspend fun dbRemoveDevice(uid: DeviceUid) {
     di.db.ready()
 
     val device = di.dao.deviceByUid(uid) ?: return
@@ -161,7 +161,7 @@ suspend fun dbMaxTimeAll(): TimeByDevice {
     return dbDevices().associate { Pair(it.uid, di.dao.timeMaxByDeviceLid(it.lid) ?: 0) }
 }
 
-suspend fun dbSelectTimeRange(min: Time, max: Time?, deviceUid: String?): TimesByDevice {
+suspend fun dbSelectTimeRange(min: Time, max: Time?, deviceUid: DeviceUid?): TimesByDevice {
     di.db.ready()
 
     val max = max ?: timeNow()
@@ -177,14 +177,14 @@ suspend fun dbSelectTimeRange(min: Time, max: Time?, deviceUid: String?): TimesB
 suspend fun dbSelectTimeRangeMany(devices: TimeByDevice): TimesByDevice {
     di.db.ready()
 
-    val result = mutableMapOf<String, List<Time>>()
+    val result = mutableMapOf<DeviceUid, List<Time>>()
     devices.forEach {
         result += dbSelectTimeRange(it.value, null, it.key)
     }
     return result
 }
 
-suspend fun dbMergeTime(deviceUid: String, times: List<Time>): List<Time> {
+suspend fun dbMergeTime(deviceUid: DeviceUid, times: List<Time>): List<Time> {
     di.db.ready()
 
     if (times.isEmpty()) return listOf()

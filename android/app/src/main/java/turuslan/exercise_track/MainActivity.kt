@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun UiDevices(modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
-    val thisDeviceUid = remember { mutableStateOf<String?>(null) }
+    val thisDeviceUid = remember { mutableStateOf<DeviceUid?>(null) }
     val dbDevices = remember { mutableStateOf(listOf<DbDevice>()) }
     LaunchedEffect(Unit) {
         thisDeviceUid.value = dbThisDeviceUid()

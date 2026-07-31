@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 
 class Mdns(context: Context, val scope: CoroutineScope) {
     val mdnsType = "_exercise-track._tcp"
-    val devices = mutableStateMapOf<String, String>()
+    val devices = mutableStateMapOf<DeviceUid, String>()
     val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
     val multicastLock =
         wifiManager.createMulticastLock("exercise-track").apply { setReferenceCounted(false) }!!
@@ -70,12 +70,12 @@ class Mdns(context: Context, val scope: CoroutineScope) {
         nsd.stopServiceDiscovery(discoveryListener)
     }
 
-    fun add(deviceUid: String, address: String) {
+    fun add(deviceUid: DeviceUid, address: String) {
         devices[deviceUid] = address
         scope.launch { flowMdns.emit(Unit) }
     }
 
-    fun remove(deviceUid: String) {
+    fun remove(deviceUid: DeviceUid) {
         devices.remove(deviceUid)
         scope.launch { flowMdns.emit(Unit) }
     }
