@@ -249,11 +249,7 @@ export async function dbRemoveDevice(uid: DeviceUid) {
   const device = await db.manager.findOne(DbDevice, { where: { uid } });
   if (device === null) return;
   if (await db.manager.exists(DbTime, { where: { device_lid: device.lid } })) {
-    await db.manager.upsert(
-      DbDevice,
-      { uid, name: device.name, enabled: false },
-      ["uid"],
-    );
+    await db.manager.upsert(DbDevice, { uid, enabled: false }, ["uid"]);
   } else {
     await db.manager.delete(DbDevice, { uid });
   }
