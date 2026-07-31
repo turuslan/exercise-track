@@ -3,7 +3,9 @@ package turuslan.exercise_track
 import android.content.Context
 import androidx.room.Dao
 import androidx.room.Database
+import androidx.room.Delete
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
@@ -23,6 +25,14 @@ data class DbKv(
     val value: String,
 )
 
+@Entity(indices = [Index(value = ["uid"], unique = true)])
+data class DbDevice(
+    @PrimaryKey(autoGenerate = true) val lid: Int,
+    val uid: String,
+    val name: String,
+    val enabled: Boolean,
+)
+
 @Dao
 interface DbDao {
     @Query("""SELECT value FROM DbKv WHERE `key` = :key""")
@@ -30,18 +40,34 @@ interface DbDao {
 
     @Upsert
     suspend fun kvSet(kv: DbKv)
+
+    @Query("""SELECT * FROM DbDevice WHERE uid = :uid""")
+    suspend fun deviceByUid(uid: String): DbDevice?
+
+    @Query("""SELECT * FROM DbDevice WHERE uid != :thisDeviceUid AND enabled""")
+    suspend fun devices(thisDeviceUid: String): List<DbDevice>
+
+    @Upsert
+    suspend fun deviceUpsert(device: DbDevice): DbDevice
+
+    @Delete
+    suspend fun deviceRemove(device: DbDevice)
+
+    // TODO
+    suspend fun timeExistsDeviceLid(lid: Int): Boolean = false
 }
 
 @Database(
     entities = [
         DbKv::class,
+        DbDevice::class,
     ],
     version = 1,
 )
 abstract class Db : RoomDatabase() {
     abstract fun dao(): DbDao
 
-    var thisDeviceUid: String? = null
+    var thisDevice: DbDevice? = null
     var _ready: Deferred<Unit>? = null
 
     suspend fun ready() {
@@ -54,10 +80,15 @@ abstract class Db : RoomDatabase() {
             db._ready = scope.async {
                 val dao = db.dao()
                 val thisDeviceUidKey = "this_device_uid"
-                db.thisDeviceUid = dao.kvGet(thisDeviceUidKey)
-                if (db.thisDeviceUid == null) {
-                    db.thisDeviceUid = makeUid()
-                    dao.kvSet(DbKv(thisDeviceUidKey, db.thisDeviceUid!!))
+                var thisDeviceUid = dao.kvGet(thisDeviceUidKey)
+                if (thisDeviceUid == null) {
+                    thisDeviceUid = makeUid()
+                    dao.kvSet(DbKv(thisDeviceUidKey, thisDeviceUid))
+                }
+                db.thisDevice = dao.deviceByUid(thisDeviceUid)
+                if (db.thisDevice == null) {
+                    db.thisDevice =
+                        dao.deviceUpsert(DbDevice(0, thisDeviceUid, "this device", true))
                 }
             }
             return db
@@ -68,5 +99,28 @@ abstract class Db : RoomDatabase() {
 suspend fun dbThisDeviceUid(): String {
     di.db.ready()
 
-    return di.db.thisDeviceUid!!
+    return di.db.thisDevice!!.uid
+}
+
+suspend fun dbDevices(): List<DbDevice> {
+    di.db.ready()
+
+    return di.dao.devices(di.db.thisDevice!!.uid).sortedBy { it.uid }
+}
+
+suspend fun dbUpsertDevice(uid: String, name: String) {
+    di.db.ready()
+
+    di.dao.deviceUpsert(DbDevice(0, uid, name, true))
+}
+
+suspend fun dbRemoveDevice(uid: String) {
+    di.db.ready()
+
+    val device = di.dao.deviceByUid(uid) ?: return
+    if (di.dao.timeExistsDeviceLid(device.lid)) {
+        di.dao.deviceUpsert(device.copy(enabled = false))
+    } else {
+        di.dao.deviceRemove(device)
+    }
 }

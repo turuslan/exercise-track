@@ -9,7 +9,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 
-
 class Mdns(context: Context, val scope: CoroutineScope) {
     val mdnsType = "_exercise-track._tcp"
     val devices = mutableStateMapOf<String, String>()
