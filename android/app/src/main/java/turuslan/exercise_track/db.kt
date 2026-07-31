@@ -1,11 +1,13 @@
 package turuslan.exercise_track
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
 import androidx.room.Entity
 import androidx.room.Index
+import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
@@ -33,6 +35,12 @@ data class DbDevice(
     val enabled: Boolean,
 )
 
+@Entity
+data class DbTime(
+    @PrimaryKey val time: Time,
+    @ColumnInfo(name = "device_lid") val deviceLid: Int,
+)
+
 @Dao
 interface DbDao {
     @Query("""SELECT value FROM DbKv WHERE `key` = :key""")
@@ -53,14 +61,30 @@ interface DbDao {
     @Delete
     suspend fun deviceRemove(device: DbDevice)
 
-    // TODO
-    suspend fun timeExistsDeviceLid(lid: Int): Boolean = false
+    @Query("""SELECT * FROM DbDevice WHERE lid IN (:lids)""")
+    suspend fun devicesByLid(lids: List<Int>): List<DbDevice>
+
+    @Query("""SELECT EXISTS(SELECT 1 FROM DbTime WHERE device_lid = :deviceLid)""")
+    suspend fun timeExistsDeviceLid(deviceLid: Int): Boolean
+
+    @Query("""SELECT MAX(time) from DbTime WHERE device_lid = :deviceLid""")
+    suspend fun timeMaxByDeviceLid(deviceLid: Int): Time?
+
+    @Insert
+    suspend fun timeInsert(time: DbTime)
+
+    @Insert
+    suspend fun timeInsert(time: List<DbTime>)
+
+    @Query("""SELECT * FROM DbTime WHERE (time BETWEEN :min AND :max) AND (:deviceLid IS NULL OR device_lid = :deviceLid) ORDER BY time ASC""")
+    suspend fun timeRangeDeviceLid(min: Time, max: Time, deviceLid: Int?): List<DbTime>
 }
 
 @Database(
     entities = [
         DbKv::class,
         DbDevice::class,
+        DbTime::class,
     ],
     version = 1,
 )
@@ -123,4 +147,58 @@ suspend fun dbRemoveDevice(uid: String) {
     } else {
         di.dao.deviceRemove(device)
     }
+}
+
+suspend fun dbInsertTime(time: Time) {
+    di.db.ready()
+
+    di.dao.timeInsert(DbTime(time, di.db.thisDevice!!.lid))
+}
+
+suspend fun dbMaxTimeAll(): TimeByDevice {
+    di.db.ready()
+
+    return dbDevices().associate { Pair(it.uid, di.dao.timeMaxByDeviceLid(it.lid) ?: 0) }
+}
+
+suspend fun dbSelectTimeRange(min: Time, max: Time?, deviceUid: String?): TimesByDevice {
+    di.db.ready()
+
+    val max = max ?: timeNow()
+    val deviceLid = deviceUid?.let { di.dao.deviceByUid(it)?.lid ?: return mapOf() }
+    val rows = di.dao.timeRangeDeviceLid(min, max, deviceLid)
+    deviceUid?.let { if (rows.isEmpty()) return mapOf(Pair(it, listOf())) }
+    val lidTimes = rows.groupBy({ it.deviceLid }, { it.time })
+    val devices = di.dao.devicesByLid(lidTimes.keys.toList())
+    val lidUid = devices.associate { Pair(it.lid, it.uid) }
+    return lidTimes.filterKeys { lidUid.contains(it) }.mapKeys { lidUid[it.key]!! }
+}
+
+suspend fun dbSelectTimeRangeMany(devices: TimeByDevice): TimesByDevice {
+    di.db.ready()
+
+    val result = mutableMapOf<String, List<Time>>()
+    devices.forEach {
+        result += dbSelectTimeRange(it.value, null, it.key)
+    }
+    return result
+}
+
+suspend fun dbMergeTime(deviceUid: String, times: List<Time>): List<Time> {
+    di.db.ready()
+
+    if (times.isEmpty()) return listOf()
+    val device = di.dao.deviceByUid(deviceUid) ?: return listOf()
+    if (!device.enabled) return listOf()
+    val existing = dbSelectTimeRange(times.min(), times.max(), deviceUid)[deviceUid]!!
+    val times = times.filter { existing.contains(it) }
+    if (times.isEmpty()) return listOf()
+    di.dao.timeInsert(times.map { DbTime(it, device.lid) })
+    return times
+}
+
+suspend fun dbMergeTimeMany(devices: TimesByDevice): TimesByDevice {
+    di.db.ready()
+
+    return devices.mapValues { dbMergeTime(it.key, it.value) }
 }
