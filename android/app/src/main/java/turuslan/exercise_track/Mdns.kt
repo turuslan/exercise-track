@@ -72,12 +72,12 @@ class Mdns(context: Context, val scope: CoroutineScope) {
 
     fun add(deviceUid: DeviceUid, address: String) {
         devices[deviceUid] = address
-        scope.launch { flowMdns.emit(Unit) }
+        scope.launch { eventMdnsChange.emit(Unit) }
     }
 
     fun remove(deviceUid: DeviceUid) {
         devices.remove(deviceUid)
-        scope.launch { flowMdns.emit(Unit) }
+        scope.launch { eventMdnsChange.emit(Unit) }
     }
 }
 

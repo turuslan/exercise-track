@@ -116,7 +116,7 @@ fun UiDayWrap(modifier: Modifier = Modifier) {
     val times = remember { mutableStateListOf<Time>() }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
-        flowTimeAdded.collect { devices ->
+        eventTimeAdded.collect { devices ->
             devices.values.forEach {
                 for (time in it) {
                     if (times.contains(time)) continue
@@ -130,7 +130,7 @@ fun UiDayWrap(modifier: Modifier = Modifier) {
     UiDay(times, now, modifier) {
         scope.launch {
             // TODO: db
-            flowTimeAdded.emit(mapOf(Pair("_android", listOf(it))))
+            eventTimeAdded.emit(mapOf(Pair("_android", listOf(it))))
         }
     }
 }
