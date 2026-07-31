@@ -50,6 +50,8 @@ class DbDevice {
   uid: string = undefined!;
   @TypeOrm.Column("text")
   name: string = undefined!;
+  @TypeOrm.Column("boolean")
+  enabled: boolean = undefined!;
 }
 
 @TypeOrm.Entity()
@@ -89,22 +91,12 @@ async function dbReady() {
         (device) => {
           device.uid = this_device_uid_kv.value;
           device.name = "this device";
+          device.enabled = true;
         },
       );
     })
   );
   await _db_ready;
-}
-
-async function whereDeviceUid(uid: string | null) {
-  await dbReady();
-
-  if (uid === null) return {};
-  const device = uid !== null
-    ? await db.manager.findOne(DbDevice, { where: { uid } })
-    : null;
-  if (device === null) return null;
-  return { device_lid: device.lid };
 }
 
 export async function dbInsertTime(time: number) {
@@ -124,8 +116,14 @@ export async function dbSelectTimeRange(
   await dbReady();
 
   max ??= Date.now();
-  const where_device = await whereDeviceUid(device_uid);
-  if (where_device === null) return {};
+  const where_device: Partial<DbDevice> = {};
+  if (device_uid !== null) {
+    const device = await db.manager.findOne(DbDevice, {
+      where: { uid: device_uid },
+    });
+    if (device === null) return {};
+    where_device.lid = device.lid;
+  }
   const rows = await db.manager.find(DbTime, {
     where: {
       time_ms: TypeOrm.Between(min, max),
@@ -164,32 +162,26 @@ export async function dbSelectTimeRangeMany(devices: TimeByDevice) {
   return times;
 }
 
-export async function dbMaxTime(
-  device_uid: string,
-): Promise<number | null> {
-  await dbReady();
-
-  const where_device = await whereDeviceUid(device_uid);
-  if (where_device === null) return null;
-  return await db.manager.maximum(DbTime, "time_ms");
-}
-
 export async function dbMaxTimeAll(): Promise<TimeByDevice> {
   await dbReady();
 
   const devices: TimeByDevice = {};
   for (const device of await dbDevices()) {
-    devices[device.uid] = await dbMaxTime(device.uid) ?? 0;
+    devices[device.uid] =
+      await db.manager.maximum(DbTime, "time_ms", { device_lid: device.lid }) ??
+        0;
   }
   return devices;
 }
 
-export async function dbMergeTime(device_uid: string, times: number[]) {
+async function dbMergeTime(device_uid: string, times: number[]) {
   await dbReady();
 
   if (times.length === 0) return [];
-  const where_device = await whereDeviceUid(device_uid);
-  if (where_device === null) return [];
+  const device = await db.manager.findOne(DbDevice, {
+    where: { uid: device_uid, enabled: true },
+  });
+  if (device === null) return [];
   const min = Math.min(...times);
   const max = Math.max(...times);
   const existing = await dbSelectTimeRange(min, max, device_uid);
@@ -200,7 +192,7 @@ export async function dbMergeTime(device_uid: string, times: number[]) {
     times.map((time) => {
       const db_time = new DbTime();
       db_time.time_ms = time;
-      db_time.device_lid = where_device.device_lid!;
+      db_time.device_lid = device.lid;
       return db_time;
     }),
   );
@@ -227,21 +219,33 @@ export async function thisDeviceUid() {
 export async function dbDevices() {
   await dbReady();
 
-  const devices = await db.manager.find(
+  return await db.manager.find(
     DbDevice,
-    { where: { uid: TypeOrm.Not(this_device.uid) } },
+    { where: { uid: TypeOrm.Not(this_device.uid), enabled: true } },
   );
-  return devices.map((device) => ({ uid: device.uid, name: device.name }));
 }
 
-export async function dbUpsertDevice(uid: string, name: string) {
+export async function dbUpsertDevice(
+  uid: string,
+  name: string,
+) {
   await dbReady();
 
-  await db.manager.upsert(DbDevice, { uid, name }, ["uid"]);
+  await db.manager.upsert(DbDevice, { uid, name, enabled: true }, ["uid"]);
 }
 
 export async function dbRemoveDevice(uid: string) {
   await dbReady();
 
-  await db.manager.delete(DbDevice, { uid });
+  const device = await db.manager.findOne(DbDevice, { where: { uid } });
+  if (device === null) return;
+  if (await db.manager.exists(DbTime, { where: { device_lid: device.lid } })) {
+    await db.manager.upsert(
+      DbDevice,
+      { uid, name: device.name, enabled: false },
+      ["uid"],
+    );
+  } else {
+    await db.manager.delete(DbDevice, { uid });
+  }
 }
