@@ -32,6 +32,7 @@ import { debugPort } from "./src/debug";
 import koaWs from "koa-websocket";
 import { useThisDeviceUid } from "./src/use-this-device";
 import { TimeByDevice } from "./src/types";
+import { eventMdnsChange } from "./src/events";
 
 const port = debugPort() ?? 8087;
 
@@ -118,7 +119,7 @@ const time_scale = time_scale_real;
 
 function useMdnsServices() {
   const [state, setState] = useState<Services>(mdns.services);
-  useEffect(() => mdns.on(setState), [setState]);
+  useEffect(() => eventMdnsChange.subscribe(() => setState(mdns.services)), []);
   return state;
 }
 

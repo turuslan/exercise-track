@@ -1,27 +1,19 @@
-import * as Mdns2 from "mdns";
+import Mdns2 from "mdns";
 import { thisDeviceUid } from "./db";
+import { eventMdnsChange } from "./events";
 
 const type = "exercise-track";
 
 export type Services = Record<string, string>;
-type ServicesCb = (services: Services) => void;
 
 export class Mdns {
   advertisement: Mdns2.Advertisement = null!;
   browser: Mdns2.Browser = null!;
   services: Services = {};
-  callbacks = new Set<ServicesCb>();
 
   setServices(services: Services) {
     this.services = services;
-    for (const cb of this.callbacks) cb(services);
-  }
-
-  on(cb: (services: typeof this.services) => void) {
-    this.callbacks.add(cb);
-    return () => {
-      this.callbacks.delete(cb);
-    };
+    eventMdnsChange.notify();
   }
 
   constructor() {

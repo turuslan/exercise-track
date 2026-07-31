@@ -4,6 +4,7 @@ import {
   dbMergeTimeMany,
   dbSelectTimeRangeMany,
 } from "./db";
+import { eventMdnsChange } from "./events";
 import { mdns } from "./mdns";
 import { filterGroup, mapGroup, TimeByDevice, TimesByDevice } from "./types";
 import { subscribeDeviceAdded } from "./use-device";
@@ -134,5 +135,5 @@ export async function wsServerSession(ws: WebSocket) {
   queue = null!;
 }
 
-mdns.on(syncAll);
+eventMdnsChange.subscribe(syncAll);
 subscribeDeviceAdded(syncAll);
