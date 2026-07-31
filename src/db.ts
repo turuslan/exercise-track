@@ -139,6 +139,9 @@ export async function dbSelectTimeRange(
       ...where_device,
     },
   });
+  if (device_uid !== null && rows.length === 0) {
+    return { [device_uid]: [] };
+  }
   const lid_times = Object.groupBy(
     rows.map((row) => row.time),
     (row, i) => rows[i].device_lid,
@@ -149,15 +152,10 @@ export async function dbSelectTimeRange(
   const lid_uid = Object.fromEntries(
     devices.map((device) => [device.lid, device.uid]),
   );
-  const group = filterGroup(
-    mapGroup(
-      lid_times,
-      (lid, times) => [lid_uid[lid] ?? null!, times.sort(cmp)],
-    ),
-    (uid) => uid !== null,
+  return mapGroup(
+    filterGroup(lid_times, (lid) => lid in lid_uid),
+    (lid, times) => [lid_uid[lid], times.sort(cmp)],
   );
-  if (device_uid !== null) group[device_uid] ??= [];
-  return group;
 }
 
 export async function dbSelectTimeRangeMany(devices: TimeByDevice) {
@@ -212,6 +210,7 @@ export async function dbMergeTimeMany(
   devices: TimesByDevice,
 ): Promise<TimesByDevice> {
   await dbReady();
+
   const added: TimesByDevice = {};
   for (const [device_uid, times] of Object.entries(devices)) {
     added[device_uid] = await dbMergeTime(device_uid, times);
