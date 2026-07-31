@@ -10,11 +10,7 @@ import { subscribeDeviceAdded } from "./use-device";
 import { notifyTimeAdded, subscribeTimeAdded } from "./use-time";
 
 function getAddress(device_uid: string) {
-  const addresses = mdns.services[device_uid] ?? [];
-  if (addresses.length === 0) {
-    return null;
-  }
-  return addresses[0];
+  return mdns.services[device_uid] ?? null;
 }
 
 async function merge(times: TimesByDevice) {

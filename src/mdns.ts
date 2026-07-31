@@ -3,7 +3,7 @@ import { thisDeviceUid } from "./db";
 
 const type = "exercise-track";
 
-export type Services = Record<string, string[]>;
+export type Services = Record<string, string>;
 type ServicesCb = (services: Services) => void;
 
 export class Mdns {
@@ -37,7 +37,8 @@ export class Mdns {
             .filter((ip) => ip !== "127.0.0.1" && !ip.includes(":"))
             .map((ip) => `${ip}:${service.port}`);
           if (addresses.length === 0) return;
-          this.setServices({ ...this.services, [uid]: addresses });
+          const address = addresses[0];
+          this.setServices({ ...this.services, [uid]: address });
         },
       );
       this.browser.on(
