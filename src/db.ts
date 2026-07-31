@@ -126,13 +126,13 @@ export async function dbSelectTimeRange(
   await dbReady();
 
   max ??= Date.now();
-  const where_device: Partial<DbDevice> = {};
+  const where_device: Partial<DbTime> = {};
   if (device_uid !== null) {
     const device = await db.manager.findOne(DbDevice, {
       where: { uid: device_uid },
     });
     if (device === null) return {};
-    where_device.lid = device.lid;
+    where_device.device_lid = device.lid;
   }
   const rows = await db.manager.find(DbTime, {
     where: {
