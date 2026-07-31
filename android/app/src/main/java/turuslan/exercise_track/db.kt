@@ -149,10 +149,11 @@ suspend fun dbRemoveDevice(uid: DeviceUid) {
     }
 }
 
-suspend fun dbInsertTime(time: Time) {
+suspend fun dbInsertTime(time: Time): TimesByDevice {
     di.db.ready()
 
     di.dao.timeInsert(DbTime(time, di.db.thisDevice!!.lid))
+    return mapOf(Pair(di.db.thisDevice!!.uid, listOf(time)))
 }
 
 suspend fun dbMaxTimeAll(): TimeByDevice {

@@ -15,13 +15,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableLongState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -112,40 +111,39 @@ fun UiDayWrap(modifier: Modifier = Modifier) {
     }
     val min = remember { derivedStateOf { time_scale.getGroup(now.longValue) } }
     val max = remember { derivedStateOf { time_scale.nextGroup(now.longValue) } }
-    // TODO: db
-    val times = remember { mutableStateListOf<Time>() }
+    val times = remember { mutableStateOf(listOf<Time>()) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) {
+    LaunchedEffect(min.value, max.value) {
+        scope.launch {
+            times.value = dbSelectTimeRange(min.value, max.value, null)
+                .values.flatten().sorted()
+        }
         eventTimeAdded.collect { devices ->
-            devices.values.forEach {
-                for (time in it) {
-                    if (times.contains(time)) continue
-                    if (time !in min.value..max.value) continue
-                    times.add(time)
-                }
-                times.sort()
-            }
+            val added = devices.values.flatten()
+                .filter { it in min.value..max.value && !times.value.contains(it) }
+            if (added.isEmpty()) return@collect
+            val updated = times.value.toMutableList()
+            updated.addAll(added)
+            updated.sort()
+            times.value = updated
         }
     }
     UiDay(times, now, modifier) {
-        scope.launch {
-            // TODO: db
-            eventTimeAdded.emit(mapOf(Pair("_android", listOf(it))))
-        }
+        scope.launch { eventTimeAdded.emit(dbInsertTime(it)) }
     }
 }
 
 @Composable
 fun UiDay(
-    times: SnapshotStateList<Time>,
+    times: State<List<Time>>,
     now: MutableLongState,
     modifier: Modifier = Modifier,
     addTime: (Time) -> Unit = {}
 ) {
     val target = 10
     val fontSize = 32.sp
-    val count = times.size
-    val last = times.lastOrNull()
+    val count = times.value.size
+    val last = times.value.lastOrNull()
     val bar1 = "#".repeat(min(count, target))
     val bar2 = ".".repeat(max(target - count, 0))
     val bar3 = "+".repeat(max(count - target, 0))
@@ -174,7 +172,7 @@ fun UiDay(
 @Preview(showBackground = true, widthDp = 340, heightDp = 600)
 @Composable
 fun GreetingPreview() {
-    val times = remember { mutableStateListOf(100L, 200L, 300L) }
+    val times = remember { mutableStateOf(listOf(100L, 200L, 300L)) }
     val now = remember { mutableLongStateOf(0) }
     ExerciseTrackTheme {
         UiDay(times, now)
