@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { dbInsertTime, dbSelectTimeRange } from "./db";
 import { cmp } from "./cmp";
-import { flatGroup } from "./types";
+import { flatGroup, Time } from "./types";
 import { useThisDeviceUid } from "./use-this-device";
 import { eventTimesAdded } from "./events";
 
-export function useTimeRange(min: number, max: number) {
-  const [state, setState] = useState<number[]>([]);
+export function useTimeRange(min: Time, max: Time) {
+  const [state, setState] = useState<Time[]>([]);
   useEffect(() => {
     dbSelectTimeRange(min, max, null)
       .then((times) => setState(flatGroup(times).sort(cmp)));
@@ -26,7 +26,7 @@ export function useTimeRange(min: number, max: number) {
 
 // TODO: useOnce
 export function useAddTime() {
-  const [state, setState] = useState<number | null>(null);
+  const [state, setState] = useState<Time | null>(null);
   const this_device_uid = useThisDeviceUid();
   useEffect(() => {
     if (this_device_uid === null) return;
@@ -37,5 +37,5 @@ export function useAddTime() {
       setState(null);
     });
   }, [setState, state, this_device_uid]);
-  return useCallback((time: number) => setState(time), [setState]);
+  return useCallback((time: Time) => setState(time), [setState]);
 }

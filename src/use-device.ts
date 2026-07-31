@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
-import { dbDevices, dbRemoveDevice, dbUpsertDevice } from "./db";
+import { DbDevice, dbDevices, dbRemoveDevice, dbUpsertDevice } from "./db";
 import { cmp } from "./cmp";
 import { eventDevicesChange } from "./events";
+import { DeviceUid } from "./types";
 
-function cmpDevice<T extends { uid: string }>(a: T, b: T) {
+function cmpDevice<T extends { uid: DeviceUid }>(a: T, b: T) {
   return cmp(a.uid, b.uid);
 }
 
 export function useDbDevices() {
   const [state, setState] = useState({
     read_nonce: 0,
-    devices: [] as { uid: string; name: string }[],
-    upsert: null as { uid: string; name: string } | null,
-    remove: null as string | null,
+    devices: [] as DbDevice[],
+    upsert: null as { uid: DeviceUid; name: string } | null,
+    remove: null as DeviceUid | null,
   });
   useEffect(
     () =>
@@ -44,10 +45,10 @@ export function useDbDevices() {
   }, [state.remove]);
   return {
     devices: state.devices,
-    upsert(uid: string, name: string) {
+    upsert(uid: DeviceUid, name: string) {
       setState((state) => ({ ...state, upsert: { uid, name } }));
     },
-    remove(uid: string) {
+    remove(uid: DeviceUid) {
       setState((state) => ({ ...state, remove: uid }));
     },
   };

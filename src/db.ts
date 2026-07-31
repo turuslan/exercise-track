@@ -1,8 +1,17 @@
 import * as TypeOrm from "typeorm";
 import * as Url from "node:url";
 import { debugDb, debugTypeormSynchronize, debugUid } from "./debug";
-import { filterGroup, mapGroup, TimeByDevice, TimesByDevice } from "./types";
+import {
+  DeviceUid,
+  filterGroup,
+  mapGroup,
+  Time,
+  TimeByDevice,
+  TimesByDevice,
+} from "./types";
 import { cmp } from "./cmp";
+
+type DeviceLid = number;
 
 let this_device: DbDevice = null!;
 
@@ -37,17 +46,17 @@ async function findOrInsert<T, K extends keyof T>(
 @TypeOrm.Entity()
 class DbTime {
   @TypeOrm.PrimaryColumn("integer")
-  time_ms: number = undefined!;
+  time: Time = undefined!;
   @TypeOrm.Column("integer")
-  device_lid: number = undefined!;
+  device_lid: DeviceLid = undefined!;
 }
 
 @TypeOrm.Entity()
-class DbDevice {
+export class DbDevice {
   @TypeOrm.PrimaryGeneratedColumn()
-  lid: number = undefined!;
+  lid: DeviceLid = undefined!;
   @TypeOrm.Column("text", { unique: true })
-  uid: string = undefined!;
+  uid: DeviceUid = undefined!;
   @TypeOrm.Column("text")
   name: string = undefined!;
   @TypeOrm.Column("boolean")
@@ -99,19 +108,19 @@ async function dbReady() {
   await _db_ready;
 }
 
-export async function dbInsertTime(time: number) {
+export async function dbInsertTime(time: Time) {
   await dbReady();
 
   const row = new DbTime();
-  row.time_ms = time;
+  row.time = time;
   row.device_lid = this_device.lid;
   await db.manager.insert(DbTime, row);
 }
 
 export async function dbSelectTimeRange(
-  min: number,
-  max: number | null,
-  device_uid: string | null,
+  min: Time,
+  max: Time | null,
+  device_uid: DeviceUid | null,
 ): Promise<TimesByDevice> {
   await dbReady();
 
@@ -126,14 +135,14 @@ export async function dbSelectTimeRange(
   }
   const rows = await db.manager.find(DbTime, {
     where: {
-      time_ms: TypeOrm.Between(min, max),
+      time: TypeOrm.Between(min, max),
       ...where_device,
     },
   });
   const lid_times = Object.groupBy(
-    rows.map((row) => row.time_ms),
+    rows.map((row) => row.time),
     (row, i) => rows[i].device_lid,
-  ) as Record<string, number[]>;
+  ) as TimesByDevice;
   const devices = await db.manager.find(DbDevice, {
     where: { lid: TypeOrm.In(Object.keys(lid_times)) },
   });
@@ -168,13 +177,13 @@ export async function dbMaxTimeAll(): Promise<TimeByDevice> {
   const devices: TimeByDevice = {};
   for (const device of await dbDevices()) {
     devices[device.uid] =
-      await db.manager.maximum(DbTime, "time_ms", { device_lid: device.lid }) ??
+      await db.manager.maximum(DbTime, "time", { device_lid: device.lid }) ??
         0;
   }
   return devices;
 }
 
-async function dbMergeTime(device_uid: string, times: number[]) {
+async function dbMergeTime(device_uid: DeviceUid, times: Time[]) {
   await dbReady();
 
   if (times.length === 0) return [];
@@ -191,7 +200,7 @@ async function dbMergeTime(device_uid: string, times: number[]) {
     DbTime,
     times.map((time) => {
       const db_time = new DbTime();
-      db_time.time_ms = time;
+      db_time.time = time;
       db_time.device_lid = device.lid;
       return db_time;
     }),
@@ -226,7 +235,7 @@ export async function dbDevices() {
 }
 
 export async function dbUpsertDevice(
-  uid: string,
+  uid: DeviceUid,
   name: string,
 ) {
   await dbReady();
@@ -234,7 +243,7 @@ export async function dbUpsertDevice(
   await db.manager.upsert(DbDevice, { uid, name, enabled: true }, ["uid"]);
 }
 
-export async function dbRemoveDevice(uid: string) {
+export async function dbRemoveDevice(uid: DeviceUid) {
   await dbReady();
 
   const device = await db.manager.findOne(DbDevice, { where: { uid } });

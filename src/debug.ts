@@ -1,4 +1,5 @@
 import * as Url from "node:url";
+import { DeviceUid } from "./types";
 
 const debug = process.env.DEBUG ? +process.env.DEBUG : null;
 if (debug !== null && isNaN(debug)) throw new Error();
@@ -15,7 +16,7 @@ export function debugDb() {
   );
 }
 
-export function debugUid() {
+export function debugUid(): DeviceUid | null {
   if (debug === null) return null;
   return `_debug${debugPort()}`;
 }

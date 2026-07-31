@@ -1,10 +1,11 @@
 import Mdns2 from "mdns";
 import { thisDeviceUid } from "./db";
 import { eventMdnsChange } from "./events";
+import { DeviceUid } from "./types";
 
 const type = "exercise-track";
 
-export type Services = Record<string, string>;
+export type Services = Record<DeviceUid, string>;
 
 export class Mdns {
   advertisement: Mdns2.Advertisement = null!;

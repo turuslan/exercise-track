@@ -1,5 +1,7 @@
-export type TimeByDevice = Record<string, number>;
-export type TimesByDevice = Record<string, number[]>;
+export type Time = number;
+export type DeviceUid = string;
+export type TimeByDevice = Record<DeviceUid, Time>;
+export type TimesByDevice = Record<DeviceUid, Time[]>;
 
 export function mapGroup<T, U>(
   group: Record<string, T>,

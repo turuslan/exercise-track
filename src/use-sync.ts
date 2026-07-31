@@ -6,9 +6,16 @@ import {
 } from "./db";
 import { eventDevicesChange, eventMdnsChange, eventTimesAdded } from "./events";
 import { mdns } from "./mdns";
-import { filterGroup, mapGroup, TimeByDevice, TimesByDevice } from "./types";
+import {
+  DeviceUid,
+  filterGroup,
+  mapGroup,
+  Time,
+  TimeByDevice,
+  TimesByDevice,
+} from "./types";
 
-function getAddress(device_uid: string) {
+function getAddress(device_uid: DeviceUid) {
   return mdns.services[device_uid] ?? null;
 }
 
@@ -17,11 +24,11 @@ async function merge(times: TimesByDevice) {
   eventTimesAdded.notify(added);
 }
 
-export function toDiff(times: number[]) {
+export function toDiff(times: Time[]) {
   return times.map((x, i, xs) => i === 0 ? x : x - xs[i - 1]);
 }
-function fromDiff(times_diff: number[]) {
-  const times: number[] = [];
+function fromDiff(times_diff: Time[]) {
+  const times: Time[] = [];
   let sum = 0;
   for (const diff of times_diff) {
     sum += diff;
@@ -49,9 +56,9 @@ function fromResponse(
   return res.times;
 }
 
-const syncing = new Set<string>();
+const syncing = new Set<DeviceUid>();
 
-async function syncLocked(device_uid: string) {
+async function syncLocked(device_uid: DeviceUid) {
   const address = getAddress(device_uid);
   if (address === null) return;
   const api_url = new URL(`http://${address}/api/sync`);
@@ -64,7 +71,7 @@ async function syncLocked(device_uid: string) {
   const times = fromResponse(await res.json());
   await merge(times);
 }
-async function sync(device_uid: string) {
+async function sync(device_uid: DeviceUid) {
   if (syncing.has(device_uid)) return;
   syncing.add(device_uid);
   try {
@@ -74,9 +81,9 @@ async function sync(device_uid: string) {
   }
 }
 
-const wss = new Map<string, WebSocket>();
+const wss = new Map<DeviceUid, WebSocket>();
 
-function openWs(device_uid: string) {
+function openWs(device_uid: DeviceUid) {
   if (wss.has(device_uid)) return;
   const address = getAddress(device_uid);
   if (address === null) return;
