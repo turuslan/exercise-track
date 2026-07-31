@@ -1,16 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { dbInsertTime, dbSelectTimeRange } from "./db";
 import { cmp } from "./cmp";
-import { Subscribe, Subscriber } from "./subscribe";
-import { flatGroup, TimesByDevice } from "./types";
+import { flatGroup } from "./types";
 import { useThisDeviceUid } from "./use-this-device";
-
-type SubscribeArg = TimesByDevice;
-const subscribe = new Subscribe<SubscribeArg>();
-
-export function notifyTimeAdded(times: SubscribeArg) {
-  subscribe.notify(times);
-}
+import { eventTimesAdded } from "./events";
 
 export function useTimeRange(min: number, max: number) {
   const [state, setState] = useState<number[] | null>(null);
@@ -18,7 +11,7 @@ export function useTimeRange(min: number, max: number) {
     setState(null);
     dbSelectTimeRange(min, max, null)
       .then((times) => setState(flatGroup(times).sort(cmp)));
-    return subscribe.subscribe((times) =>
+    return eventTimesAdded.subscribe((times) =>
       setState((state) => {
         const added = flatGroup(times).filter((time) =>
           min <= time && time <= max &&
@@ -41,13 +34,9 @@ export function useAddTime() {
     const time = state;
     if (time === null) return;
     dbInsertTime(time).then(() => {
-      notifyTimeAdded({ [this_device_uid]: [time] });
+      eventTimesAdded.notify({ [this_device_uid]: [time] });
       setState(null);
     });
   }, [setState, state, this_device_uid]);
   return useCallback((time: number) => setState(time), [setState]);
-}
-
-export function subscribeTimeAdded(subscriber: Subscriber<SubscribeArg>) {
-  return subscribe.subscribe(subscriber);
 }

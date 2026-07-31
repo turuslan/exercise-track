@@ -4,11 +4,10 @@ import {
   dbMergeTimeMany,
   dbSelectTimeRangeMany,
 } from "./db";
-import { eventMdnsChange } from "./events";
+import { eventMdnsChange, eventTimesAdded } from "./events";
 import { mdns } from "./mdns";
 import { filterGroup, mapGroup, TimeByDevice, TimesByDevice } from "./types";
 import { subscribeDeviceAdded } from "./use-device";
-import { notifyTimeAdded, subscribeTimeAdded } from "./use-time";
 
 function getAddress(device_uid: string) {
   return mdns.services[device_uid] ?? null;
@@ -16,7 +15,7 @@ function getAddress(device_uid: string) {
 
 async function merge(times: TimesByDevice) {
   const added = await dbMergeTimeMany(times);
-  notifyTimeAdded(added);
+  eventTimesAdded.notify(added);
 }
 
 export function toDiff(times: number[]) {
@@ -113,7 +112,7 @@ export async function wsServerSession(ws: WebSocket) {
     ws.send(JSON.stringify(toResponse(times)));
   }
   let queue: TimesByDevice[] = [];
-  const unsubscribe = subscribeTimeAdded((times) => {
+  const unsubscribe = eventTimesAdded.subscribe((times) => {
     if (queue !== null) {
       queue.push(times);
     } else {
