@@ -5,7 +5,7 @@ import {
   dbSelectTimeRangeMany,
 } from "./db";
 import { mdns } from "./mdns";
-import { mapGroup, TimeByDevice, TimesByDevice } from "./types";
+import { filterGroup, mapGroup, TimeByDevice, TimesByDevice } from "./types";
 import { subscribeDeviceAdded } from "./use-device";
 import { notifyTimeAdded, subscribeTimeAdded } from "./use-time";
 
@@ -112,6 +112,7 @@ export function useSync() {
 
 export async function wsServerSession(ws: WebSocket) {
   function send(times: TimesByDevice) {
+    times = filterGroup(times, (device_uid) => device_uid in devices);
     ws.send(JSON.stringify(toResponse(times)));
   }
   let queue: TimesByDevice[] = [];
