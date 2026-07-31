@@ -56,7 +56,7 @@ interface DbDao {
     suspend fun devices(thisDeviceUid: String): List<DbDevice>
 
     @Upsert
-    suspend fun deviceUpsert(device: DbDevice): DbDevice
+    suspend fun deviceUpsert(device: DbDevice)
 
     @Delete
     suspend fun deviceRemove(device: DbDevice)
@@ -111,8 +111,8 @@ abstract class Db : RoomDatabase() {
                 }
                 db.thisDevice = dao.deviceByUid(thisDeviceUid)
                 if (db.thisDevice == null) {
-                    db.thisDevice =
-                        dao.deviceUpsert(DbDevice(0, thisDeviceUid, "this device", true))
+                    dao.deviceUpsert(DbDevice(0, thisDeviceUid, "this device", true))
+                    db.thisDevice = dao.deviceByUid(thisDeviceUid)!!
                 }
             }
             return db
