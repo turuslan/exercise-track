@@ -6,9 +6,8 @@ import { useThisDeviceUid } from "./use-this-device";
 import { eventTimesAdded } from "./events";
 
 export function useTimeRange(min: number, max: number) {
-  const [state, setState] = useState<number[] | null>(null);
+  const [state, setState] = useState<number[]>([]);
   useEffect(() => {
-    setState(null);
     dbSelectTimeRange(min, max, null)
       .then((times) => setState(flatGroup(times).sort(cmp)));
     return eventTimesAdded.subscribe((times) =>

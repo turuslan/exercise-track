@@ -155,8 +155,8 @@ function UiDay(props: PropOnInput & { focus: boolean }) {
     time_scale.getGroup(day).getTime(),
     time_scale.nextGroup(day).getTime(),
   );
-  const count = times === null ? null : times.length;
-  const last = times === null ? null : arrayLast(times);
+  const count = times.length;
+  const last = arrayLast(times);
   const add_time = useAddTime();
   useInput((input, key) => {
     if (key.return) {
@@ -175,12 +175,12 @@ function UiDay(props: PropOnInput & { focus: boolean }) {
     <Box flexDirection="column">
       <Box>
         <Text>
-          {`${mmdd(now)} ${hhmm(now)}, ${count ?? "??"}/${TARGET} `}
+          {`${mmdd(now)} ${hhmm(now)}, ${count}/${TARGET} `}
         </Text>
         <Text>
-          {`[${"#".repeat(Math.min(count ?? 0, TARGET))}${
-            ".".repeat(Math.max(0, TARGET - (count ?? 0)))
-          }${"+".repeat(Math.max(0, (count ?? 0) - TARGET))}]`}
+          {`[${"#".repeat(Math.min(count, TARGET))}${
+            ".".repeat(Math.max(0, TARGET - count))
+          }${"+".repeat(Math.max(0, count - TARGET))}]`}
         </Text>
         {last !== null && <Text>, {time_scale.ago(new Date(last), now)}</Text>}
       </Box>
