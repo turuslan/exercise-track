@@ -97,7 +97,7 @@ function openWs(device_uid: DeviceUid) {
   async function sendDevices() {
     const devices = mapGroup(
       await dbMaxTimeAll(),
-      (device_uid, max) => [device_uid, max !== null ? max + 1 : null],
+      (device_uid, max) => [device_uid, max !== null ? max + 1 : 0],
     );
     ws.send(JSON.stringify(devices));
   }
