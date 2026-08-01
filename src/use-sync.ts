@@ -113,6 +113,7 @@ export function useSync() {
 }
 
 export async function wsServerSession(ws: WebSocket) {
+  let devices: TimeByDevice = null!;
   function send(times: TimesByDevice) {
     times = filterGroup(times, (device_uid) => device_uid in devices);
     ws.send(JSON.stringify(toResponse(times)));
@@ -126,18 +127,17 @@ export async function wsServerSession(ws: WebSocket) {
     }
   });
   ws.onclose = () => unsubscribe();
-  const devices = await new Promise<TimeByDevice>((resolve) => {
-    ws.onmessage = (e) => {
-      resolve(JSON.parse(e.data));
-      ws.onmessage = null;
-    };
-  });
-  const times = await dbSelectTimeRangeMany(devices);
-  send(times);
-  for (const times of queue) {
+  ws.onmessage = async (e) => {
+    devices = JSON.parse(e.data);
+    const times = await dbSelectTimeRangeMany(devices);
     send(times);
-  }
-  queue = null!;
+    if (queue !== null) {
+      for (const times of queue) {
+        send(times);
+      }
+      queue = null!;
+    }
+  };
 }
 
 eventMdnsChange.subscribe(syncAll);
