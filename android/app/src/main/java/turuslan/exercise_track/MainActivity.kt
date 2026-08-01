@@ -40,7 +40,7 @@ const val DUPLICATE_TIME_MS = 5000
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (_di == null) _di = Di(applicationContext, lifecycleScope)
+        di(applicationContext, lifecycleScope)
         setContent {
             val padding = Modifier.padding(8.dp)
             ExerciseTrackTheme {

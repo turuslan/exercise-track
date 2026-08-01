@@ -87,5 +87,3 @@ class Mdns(context: Context, val scope: CoroutineScope) {
         // TODO
     }
 }
-
-val mdns get() = di.mdns

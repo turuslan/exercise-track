@@ -121,62 +121,62 @@ abstract class Db : RoomDatabase() {
 }
 
 suspend fun dbThisDeviceUid(): DeviceUid {
-    di.db.ready()
+    db.ready()
 
-    return di.db.thisDevice!!.uid
+    return db.thisDevice!!.uid
 }
 
 suspend fun dbDevices(): List<DbDevice> {
-    di.db.ready()
+    db.ready()
 
-    return di.dao.devices(di.db.thisDevice!!.uid).sortedBy { it.uid }
+    return dao.devices(db.thisDevice!!.uid).sortedBy { it.uid }
 }
 
 suspend fun dbUpsertDevice(uid: DeviceUid, name: String) {
-    di.db.ready()
+    db.ready()
 
-    di.dao.deviceUpsert(DbDevice(0, uid, name, true))
+    dao.deviceUpsert(DbDevice(0, uid, name, true))
 }
 
 suspend fun dbRemoveDevice(uid: DeviceUid) {
-    di.db.ready()
+    db.ready()
 
-    val device = di.dao.deviceByUid(uid) ?: return
-    if (di.dao.timeExistsDeviceLid(device.lid)) {
-        di.dao.deviceUpsert(device.copy(enabled = false))
+    val device = dao.deviceByUid(uid) ?: return
+    if (dao.timeExistsDeviceLid(device.lid)) {
+        dao.deviceUpsert(device.copy(enabled = false))
     } else {
-        di.dao.deviceRemove(device)
+        dao.deviceRemove(device)
     }
 }
 
 suspend fun dbInsertTime(time: Time): TimesByDevice {
-    di.db.ready()
+    db.ready()
 
-    di.dao.timeInsert(DbTime(time, di.db.thisDevice!!.lid))
-    return mapOf(Pair(di.db.thisDevice!!.uid, listOf(time)))
+    dao.timeInsert(DbTime(time, db.thisDevice!!.lid))
+    return mapOf(Pair(db.thisDevice!!.uid, listOf(time)))
 }
 
 suspend fun dbMaxTimeAll(): MaxTimeByDevice {
-    di.db.ready()
+    db.ready()
 
-    return dbDevices().associate { Pair(it.uid, di.dao.timeMaxByDeviceLid(it.lid)) }
+    return dbDevices().associate { Pair(it.uid, dao.timeMaxByDeviceLid(it.lid)) }
 }
 
 suspend fun dbSelectTimeRange(min: Time, max: Time?, deviceUid: DeviceUid?): TimesByDevice {
-    di.db.ready()
+    db.ready()
 
     val max = max ?: timeNow()
-    val deviceLid = deviceUid?.let { di.dao.deviceByUid(it)?.lid ?: return mapOf() }
-    val rows = di.dao.timeRangeDeviceLid(min, max, deviceLid)
+    val deviceLid = deviceUid?.let { dao.deviceByUid(it)?.lid ?: return mapOf() }
+    val rows = dao.timeRangeDeviceLid(min, max, deviceLid)
     deviceUid?.let { if (rows.isEmpty()) return mapOf(Pair(it, listOf())) }
     val lidTimes = rows.groupBy({ it.deviceLid }, { it.time })
-    val devices = di.dao.devicesByLid(lidTimes.keys.toList())
+    val devices = dao.devicesByLid(lidTimes.keys.toList())
     val lidUid = devices.associate { Pair(it.lid, it.uid) }
     return lidTimes.filterKeys { lidUid.contains(it) }.mapKeys { lidUid[it.key]!! }
 }
 
 suspend fun dbSelectTimeRangeMany(devices: TimeByDevice): TimesByDevice {
-    di.db.ready()
+    db.ready()
 
     val result = mutableMapOf<DeviceUid, List<Time>>()
     devices.forEach {
@@ -186,20 +186,20 @@ suspend fun dbSelectTimeRangeMany(devices: TimeByDevice): TimesByDevice {
 }
 
 suspend fun dbMergeTime(deviceUid: DeviceUid, times: List<Time>): List<Time> {
-    di.db.ready()
+    db.ready()
 
     if (times.isEmpty()) return listOf()
-    val device = di.dao.deviceByUid(deviceUid) ?: return listOf()
+    val device = dao.deviceByUid(deviceUid) ?: return listOf()
     if (!device.enabled) return listOf()
     val existing = dbSelectTimeRange(times.min(), times.max(), deviceUid)[deviceUid]!!
     val times = times.filter { !existing.contains(it) }
     if (times.isEmpty()) return listOf()
-    di.dao.timeInsert(times.map { DbTime(it, device.lid) })
+    dao.timeInsert(times.map { DbTime(it, device.lid) })
     return times
 }
 
 suspend fun dbMergeTimeMany(devices: TimesByDevice): TimesByDevice {
-    di.db.ready()
+    db.ready()
 
     return devices.mapValues { dbMergeTime(it.key, it.value) }
 }

@@ -5,20 +5,24 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
-class Di(context: Context, scope: CoroutineScope) {
-    val db = Db.make(context, scope)
-    val dao = db.dao()
-    val mdns = Mdns(context, scope)
+var _diReady = false
+var _mdns: Mdns? = null
+val mdns get() = _mdns!!
+var _db: Db? = null
+val db get() = _db!!
+val dao get() = db.dao()
+
+fun di(context: Context, scope: CoroutineScope) {
+    if (_diReady) return
+
+    _db = Db.make(context, scope)
+    _mdns = Mdns(context, scope)
     val sync = Sync(scope)
 
-    init {
-        scope.launch { eventMdnsChange.collect { sync.syncAll() } }
-        scope.launch { eventDevicesChange.collect { sync.syncAll() } }
-        scope.launch { mdns.advertise(sync.server()) }
-    }
+    scope.launch { eventMdnsChange.collect { sync.syncAll() } }
+    scope.launch { eventDevicesChange.collect { sync.syncAll() } }
+    scope.launch { mdns.advertise(sync.server()) }
+    _diReady = true
 }
-
-var _di: Di? = null
-val di get() = _di!!
 
 val json = Json.Default
