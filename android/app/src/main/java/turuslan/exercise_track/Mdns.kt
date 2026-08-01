@@ -38,7 +38,10 @@ class Mdns(context: Context, val scope: CoroutineScope) {
         }
 
         override fun onServiceResolved(service: NsdServiceInfo) {
-            add(service.serviceName, "${service.host.toString().substring(1)}:${service.port}")
+            val host = service.host
+            if (!host.isLoopbackAddress) {
+                add(service.serviceName, "${host.toString().substring(1)}:${service.port}")
+            }
             onResolve()
         }
 
