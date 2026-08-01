@@ -24,7 +24,7 @@ import { dbSelectTimeRange } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
 import { mdns, Services } from "./src/mdns";
-import { useAddTime, useTimeRange } from "./src/use-time";
+import { addTime, useTimeRange } from "./src/use-time";
 import { UncontrolledTextInput } from "ink-text-input";
 import { useDbDevices } from "./src/use-device";
 import { toResponse, wsServerSession } from "./src/use-sync";
@@ -156,7 +156,6 @@ function UiDay(props: PropOnInput & { focus: boolean }) {
   );
   const count = times.length;
   const last = arrayLast(times);
-  const add_time = useAddTime();
   useInput((input, key) => {
     if (key.return) {
       const now = new Date();
@@ -164,7 +163,7 @@ function UiDay(props: PropOnInput & { focus: boolean }) {
         last === null ||
         differenceInMilliseconds(now, last) >= DUPLICATE_TIME_MS
       ) {
-        add_time(now.getTime());
+        addTime(now.getTime());
       }
       return;
     }

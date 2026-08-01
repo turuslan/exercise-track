@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { dbInsertTime, dbSelectTimeRange } from "./db";
 import { cmp } from "./cmp";
 import { flatGroup, Time } from "./types";
@@ -23,16 +23,6 @@ export function useTimeRange(min: Time, max: Time) {
   return state;
 }
 
-// TODO: useOnce
-export function useAddTime() {
-  const [state, setState] = useState<Time | null>(null);
-  useEffect(() => {
-    const time = state;
-    if (time === null) return;
-    dbInsertTime(time).then((added) => {
-      eventTimesAdded.notify(added);
-      setState(null);
-    });
-  }, [setState, state]);
-  return useCallback((time: Time) => setState(time), [setState]);
+export async function addTime(time: Time) {
+  eventTimesAdded.notify(await dbInsertTime(time));
 }
