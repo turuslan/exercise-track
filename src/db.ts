@@ -228,6 +228,10 @@ export async function thisDeviceUid() {
   return this_device.uid;
 }
 
+export function thisDeviceUidNull() {
+  return this_device?.uid;
+}
+
 export async function dbDevices() {
   await dbReady();
 
