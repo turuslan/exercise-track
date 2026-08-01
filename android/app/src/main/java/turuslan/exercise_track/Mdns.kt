@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
+import android.util.Log
 import androidx.compose.runtime.mutableStateMapOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -78,6 +79,12 @@ class Mdns(context: Context, val scope: CoroutineScope) {
     fun remove(deviceUid: DeviceUid) {
         devices.remove(deviceUid)
         scope.launch { eventMdnsChange.emit(Unit) }
+    }
+
+    suspend fun advertise(port: Int) {
+        val thisDeviceUid = dbThisDeviceUid()
+        Log.i("MDNS", "advertise $thisDeviceUid $port")
+        // TODO
     }
 }
 

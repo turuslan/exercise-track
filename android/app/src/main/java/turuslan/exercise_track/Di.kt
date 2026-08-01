@@ -14,6 +14,7 @@ class Di(context: Context, scope: CoroutineScope) {
     init {
         scope.launch { eventMdnsChange.collect { sync.syncAll() } }
         scope.launch { eventDevicesChange.collect { sync.syncAll() } }
+        scope.launch { mdns.advertise(sync.server()) }
     }
 }
 
