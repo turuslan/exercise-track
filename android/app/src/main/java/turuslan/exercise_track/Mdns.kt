@@ -61,7 +61,10 @@ class Mdns(context: Context, val scope: CoroutineScope) {
         multicastLock.acquire()
         nsd.discoverServices(mdnsType, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
         scope.launch {
+            val thisDeviceUid = dbThisDeviceUid()
             for (service in resolveReq) {
+                if (service.serviceName == thisDeviceUid) continue
+                if (service.serviceName.startsWith(thisDeviceUid) && service.serviceName[thisDeviceUid.length] == ' ') continue
                 resolve(service)
             }
         }
