@@ -41,6 +41,24 @@ fun fromResponse(res: TimesResponse): TimesByDevice {
     return res.times!!
 }
 
+fun toDiff(times: List<Time>): List<Time> {
+    return times.mapIndexed { i, time ->
+        if (i == 0) {
+            time
+        } else {
+            time - times[i - 1]
+        }
+    }
+}
+
+fun toResponse(times: TimesByDevice): TimesResponse {
+    val diff = false
+    if (diff) {
+        return TimesResponse(timesDiff = times.mapValues { toDiff(it.value) })
+    }
+    return TimesResponse(times = times)
+}
+
 class Sync(val scope: CoroutineScope) {
     val wss = mutableMapOf<DeviceUid, WebSocketSession?>()
     val client = HttpClient(io.ktor.client.engine.cio.CIO) {
@@ -98,7 +116,7 @@ class Sync(val scope: CoroutineScope) {
                     suspend fun send(times: TimesByDevice) {
                         val times = times.filter { !it.value.isEmpty() && devices.contains(it.key) }
                         if (times.isEmpty()) return
-                        ws.send(json.encodeToString(times))
+                        ws.send(json.encodeToString(toResponse(times)))
                     }
                     launch {
                         send(firstSend.await())
