@@ -18,14 +18,21 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationChannelCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import turuslan.exercise_track.ui.theme.ExerciseTrackTheme
 import kotlin.math.max
@@ -48,7 +55,7 @@ data class DataDay(
     val bar3 get() = "+".repeat(max(count - target, 0))
     val slash get() = "$count/$target"
     val bar get() = "[${bar1}${bar2}${bar3}]"
-    val ago get() = last?.let { " ${time_scale.ago(it, now)}" } ?: ""
+    fun ago(prefix: String) = last?.let { "${prefix}${time_scale.ago(it, now)}" } ?: ""
 
     fun mayAdd(): Time? {
         val time = timeNow()
@@ -61,6 +68,44 @@ data class DataDay(
 
     fun shouldChange(time: Time): Boolean {
         return time in min..max && !times.contains(time)
+    }
+}
+
+@Composable
+fun UiNotification(data: State<DataDay>, addTime: (Time) -> Unit) {
+    val context = LocalContext.current
+    val channelId = "notifications"
+    val notificationId = 1
+
+    data class Ui(val count: Int, val target: Int, val title: String, val text: String)
+    LaunchedEffect(Unit) {
+        val manager = NotificationManagerCompat.from(context)
+        val channel =
+            NotificationChannelCompat.Builder(channelId, NotificationManagerCompat.IMPORTANCE_HIGH)
+                .setName(channelId).setSound(null, null).build()
+        manager.createNotificationChannel(channel)
+        snapshotFlow { data.value }
+            .map { data ->
+                Ui(
+                    count = data.count,
+                    target = data.target,
+                    title = "${data.slash}${data.ago(", ")}",
+                    text = data.bar
+                        .replace('#', '＃')
+                        .replace('.', '・')
+                        .replace('+', '＋')
+                )
+            }
+            .distinctUntilChanged()
+            .collect { ui ->
+                val notification = NotificationCompat.Builder(context, channelId)
+                    .setSmallIcon(R.drawable.ic_small_icon)
+                    .setContentTitle(ui.title)
+                    .setContentText(ui.text)
+                    .setOngoing(true)
+                    .setProgress(ui.target, ui.count, false).build()
+                manager.notify(notificationId, notification)
+            }
     }
 }
 
@@ -140,15 +185,14 @@ fun UiDayWrap(modifier: Modifier = Modifier) {
     }
     LaunchedEffect(data.value.min, data.value.max) {
         scope.launch {
-            val times = dbSelectTimeRange(data.value.min, data.value.max, null)
-                .values.flatten().sorted()
+            val times =
+                dbSelectTimeRange(data.value.min, data.value.max, null).values.flatten().sorted()
             data.value = data.value.copy(times = times)
         }
     }
     LaunchedEffect(Unit) {
         eventTimeAdded.collect { devices ->
-            val added = devices.values.flatten()
-                .filter { data.value.shouldChange(it) }
+            val added = devices.values.flatten().filter { data.value.shouldChange(it) }
             if (added.isEmpty()) return@collect
             val times = data.value.times.toMutableList()
             times.addAll(added)
@@ -156,16 +200,14 @@ fun UiDayWrap(modifier: Modifier = Modifier) {
             data.value = data.value.copy(times = times)
         }
     }
-    UiDay(data, modifier) {
-        scope.launch { eventTimeAdded.emit(dbInsertTime(it)) }
-    }
+    val addTime: (Time) -> Unit = { scope.launch { eventTimeAdded.emit(dbInsertTime(it)) } }
+    UiDay(data, modifier, addTime)
+    UiNotification(data, addTime)
 }
 
 @Composable
 fun UiDay(
-    data: State<DataDay>,
-    modifier: Modifier = Modifier,
-    addTime: (Time) -> Unit = {}
+    data: State<DataDay>, modifier: Modifier = Modifier, addTime: (Time) -> Unit = {}
 ) {
     val fontSize = 32.sp
     val data = data.value
@@ -175,7 +217,7 @@ fun UiDay(
             shape = RoundedCornerShape(1.dp),
         ) {
             Text(
-                "${data.slash}${data.ago}\n${data.bar}",
+                "${data.slash}${data.ago(", ")}\n${data.bar}",
                 fontFamily = FontFamily.Monospace,
                 lineHeight = fontSize,
                 fontSize = fontSize,
