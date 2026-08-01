@@ -43,7 +43,7 @@ async function findOrInsert<T, K extends keyof T>(
   return entity;
 }
 
-@TypeOrm.Entity()
+@TypeOrm.Entity("DbTime")
 class DbTime {
   @TypeOrm.PrimaryColumn("integer")
   time: Time = undefined!;
@@ -51,7 +51,7 @@ class DbTime {
   device_lid: DeviceLid = undefined!;
 }
 
-@TypeOrm.Entity()
+@TypeOrm.Entity("DbDevice")
 export class DbDevice {
   @TypeOrm.PrimaryGeneratedColumn()
   lid: DeviceLid = undefined!;
@@ -63,7 +63,7 @@ export class DbDevice {
   enabled: boolean = undefined!;
 }
 
-@TypeOrm.Entity()
+@TypeOrm.Entity("DbKv")
 class DbKv {
   @TypeOrm.PrimaryColumn("text")
   key: string = undefined!;
