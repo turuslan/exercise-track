@@ -156,10 +156,10 @@ suspend fun dbInsertTime(time: Time): TimesByDevice {
     return mapOf(Pair(di.db.thisDevice!!.uid, listOf(time)))
 }
 
-suspend fun dbMaxTimeAll(): TimeByDevice {
+suspend fun dbMaxTimeAll(): MaxTimeByDevice {
     di.db.ready()
 
-    return dbDevices().associate { Pair(it.uid, di.dao.timeMaxByDeviceLid(it.lid) ?: 0) }
+    return dbDevices().associate { Pair(it.uid, di.dao.timeMaxByDeviceLid(it.lid)) }
 }
 
 suspend fun dbSelectTimeRange(min: Time, max: Time?, deviceUid: DeviceUid?): TimesByDevice {

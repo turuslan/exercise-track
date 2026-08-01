@@ -54,7 +54,7 @@ class Sync(val scope: CoroutineScope) {
             val ws = this
             if (wss.contains(deviceUid)) return@webSocket
             wss[deviceUid] = ws
-            val devices = dbMaxTimeAll()
+            val devices = dbMaxTimeAll().mapValues { it.value?.let { it + 1 } ?: 0 }
             ws.send(json.encodeToString(devices))
             for (frame in ws.incoming) {
                 val times = fromResponse(json.decodeFromString((frame as Frame.Text).readText()))

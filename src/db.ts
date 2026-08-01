@@ -5,6 +5,7 @@ import {
   DeviceUid,
   filterGroup,
   mapGroup,
+  MaxTimeByDevice,
   Time,
   TimeByDevice,
   TimesByDevice,
@@ -170,14 +171,14 @@ export async function dbSelectTimeRangeMany(devices: TimeByDevice) {
   return times;
 }
 
-export async function dbMaxTimeAll(): Promise<TimeByDevice> {
+export async function dbMaxTimeAll(): Promise<MaxTimeByDevice> {
   await dbReady();
 
-  const devices: TimeByDevice = {};
+  const devices: MaxTimeByDevice = {};
   for (const device of await dbDevices()) {
-    devices[device.uid] =
-      await db.manager.maximum(DbTime, "time", { device_lid: device.lid }) ??
-        0;
+    devices[device.uid] = await db.manager.maximum(DbTime, "time", {
+      device_lid: device.lid,
+    });
   }
   return devices;
 }

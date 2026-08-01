@@ -95,7 +95,10 @@ function openWs(device_uid: DeviceUid) {
   const ws = new WebSocket(`ws://${address}/ws`);
   wss.set(device_uid, ws);
   ws.onopen = async () => {
-    const devices = await dbMaxTimeAll();
+    const devices = mapGroup(
+      await dbMaxTimeAll(),
+      (device_uid, max) => [device_uid, max !== null ? max + 1 : null],
+    );
     ws.send(JSON.stringify(devices));
   };
   ws.onmessage = async (e) => {

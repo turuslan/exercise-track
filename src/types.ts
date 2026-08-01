@@ -1,6 +1,7 @@
 export type Time = number;
 export type DeviceUid = string;
 export type TimeByDevice = Record<DeviceUid, Time>;
+export type MaxTimeByDevice = Record<DeviceUid, Time | null>;
 export type TimesByDevice = Record<DeviceUid, Time[]>;
 
 export function mapGroup<T, U>(
