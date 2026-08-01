@@ -94,18 +94,25 @@ function openWs(device_uid: DeviceUid) {
   if (address === null) return;
   const ws = new WebSocket(`ws://${address}/ws`);
   wss.set(device_uid, ws);
-  ws.onopen = async () => {
+  async function sendDevices() {
     const devices = mapGroup(
       await dbMaxTimeAll(),
       (device_uid, max) => [device_uid, max !== null ? max + 1 : null],
     );
     ws.send(JSON.stringify(devices));
+  }
+  const unsubscribe_devices = eventDevicesChange.subscribe(sendDevices);
+  ws.onopen = () => {
+    sendDevices();
   };
   ws.onmessage = async (e) => {
     const times = fromResponse(JSON.parse(e.data));
     await merge(times);
   };
-  ws.onclose = () => wss.delete(device_uid);
+  ws.onclose = () => {
+    unsubscribe_devices();
+    wss.delete(device_uid);
+  };
 }
 
 async function syncAll() {

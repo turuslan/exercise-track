@@ -54,8 +54,14 @@ class Sync(val scope: CoroutineScope) {
             val ws = this
             if (wss.contains(deviceUid)) return@webSocket
             wss[deviceUid] = ws
-            val devices = dbMaxTimeAll().mapValues { it.value?.let { it + 1 } ?: 0 }
-            ws.send(json.encodeToString(devices))
+            val sendQueue = MutableSharedFlow<String>()
+            launch { sendQueue.collect { ws.send(it) } }
+            suspend fun sendDevices() {
+                val devices = dbMaxTimeAll().mapValues { it.value?.let { it + 1 } ?: 0 }
+                ws.send(json.encodeToString(devices))
+            }
+            sendDevices()
+            launch { eventDevicesChange.collect { sendDevices() } }
             for (frame in ws.incoming) {
                 val times = fromResponse(json.decodeFromString((frame as Frame.Text).readText()))
                 val added = dbMergeTimeMany(times)
@@ -80,9 +86,9 @@ class Sync(val scope: CoroutineScope) {
                     var devices: TimeByDevice = mapOf()
                     val firstSend = CompletableDeferred<TimesByDevice>()
                     val sendQueue = MutableSharedFlow<TimesByDevice>()
-                    val send: suspend (TimesByDevice) -> Unit = send@{ times ->
+                    suspend fun send(times: TimesByDevice) {
                         val times = times.filter { !it.value.isEmpty() && devices.contains(it.key) }
-                        if (times.isEmpty()) return@send
+                        if (times.isEmpty()) return
                         ws.send(json.encodeToString(times))
                     }
                     launch {
