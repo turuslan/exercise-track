@@ -15,6 +15,11 @@ import {
   TimesByDevice,
 } from "./types";
 
+function objectEmpty(x: any) {
+  for (const _ in x) return false;
+  return true;
+}
+
 function getAddress(device_uid: DeviceUid) {
   return mdns.services[device_uid] ?? null;
 }
@@ -115,7 +120,11 @@ export function useSync() {
 export async function wsServerSession(ws: WebSocket) {
   let devices: TimeByDevice = null!;
   function send(times: TimesByDevice) {
-    times = filterGroup(times, (device_uid) => device_uid in devices);
+    times = filterGroup(
+      times,
+      (device_uid, times) => times.length !== 0 && (device_uid in devices),
+    );
+    if (objectEmpty(times)) return;
     ws.send(JSON.stringify(toResponse(times)));
   }
   let queue: TimesByDevice[] = [];
