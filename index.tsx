@@ -26,7 +26,7 @@ import KoaRouter from "@koa/router";
 import { mdns, Services } from "./src/mdns";
 import { addTime, useTimeRange } from "./src/use-time";
 import { UncontrolledTextInput } from "ink-text-input";
-import { useDbDevices } from "./src/use-device";
+import { removeDevice, upsertDevice, useDbDevices } from "./src/use-device";
 import { toResponse, wsServerSession } from "./src/use-sync";
 import { debugPort } from "./src/debug";
 import koaWs from "koa-websocket";
@@ -224,14 +224,14 @@ function UiDevices(props: PropOnInput) {
   const this_device_uid = useThisDeviceUid();
   const mdns_services = useMdnsServices();
   const [added_uids, unknown_uids] = useMemo(() => {
-    const added_uids = db_devices.devices
+    const added_uids = db_devices
       .map((device) => device.uid)
       .sort();
     const unknown_uids = Object.keys(mdns_services)
       .filter((uid) => !added_uids.includes(uid))
       .sort();
     return [added_uids, unknown_uids];
-  }, [db_devices.devices, mdns_services]);
+  }, [db_devices, mdns_services]);
   const multi_uids = [added_uids, unknown_uids];
   function select(multi_i: number) {
     if (!multiBound(multi_uids, multi_i)) return null;
@@ -274,14 +274,14 @@ function UiDevices(props: PropOnInput) {
       const { selected } = state;
       if (selected === null) return;
       if (added_uids.includes(selected.uid)) return;
-      db_devices.upsert(selected.uid, selected.uid);
+      upsertDevice(selected.uid, selected.uid);
       return;
     }
     if (input === "-") {
       const { selected } = state;
       if (selected === null) return;
       if (!added_uids.includes(selected.uid)) return;
-      db_devices.remove(selected.uid);
+      removeDevice(selected.uid);
       return;
     }
     if (input === "e") {
@@ -304,7 +304,7 @@ function UiDevices(props: PropOnInput) {
       <Box>
         <Text>added devices:</Text>
       </Box>
-      {db_devices.devices
+      {db_devices
         .map((device) => (
           <Box key={device.uid}>
             <Text>
@@ -319,7 +319,7 @@ function UiDevices(props: PropOnInput) {
                   <UncontrolledTextInput
                     initialValue={device.name}
                     onSubmit={(name) => {
-                      db_devices.upsert(device.uid, name);
+                      upsertDevice(device.uid, name);
                       setState((state) => ({ ...state, editing: null }));
                     }}
                   />

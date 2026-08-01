@@ -12,8 +12,6 @@ export function useDbDevices() {
   const [state, setState] = useState({
     read_nonce: 0,
     devices: [] as DbDevice[],
-    upsert: null as { uid: DeviceUid; name: string } | null,
-    remove: null as DeviceUid | null,
   });
   useEffect(
     () =>
@@ -27,29 +25,15 @@ export function useDbDevices() {
       setState((state) => ({ ...state, devices: devices.toSorted(cmpDevice) }));
     });
   }, [state.read_nonce]);
-  useEffect(() => {
-    const { upsert } = state;
-    if (upsert === null) return;
-    dbUpsertDevice(upsert.uid, upsert.name).then(() => {
-      eventDevicesChange.notify();
-      setState((state) => ({ ...state, upsert: null }));
-    });
-  }, [state.upsert]);
-  useEffect(() => {
-    const { remove } = state;
-    if (remove === null) return;
-    dbRemoveDevice(remove).then(() => {
-      eventDevicesChange.notify();
-      setState((state) => ({ ...state, remove: null }));
-    });
-  }, [state.remove]);
-  return {
-    devices: state.devices,
-    upsert(uid: DeviceUid, name: string) {
-      setState((state) => ({ ...state, upsert: { uid, name } }));
-    },
-    remove(uid: DeviceUid) {
-      setState((state) => ({ ...state, remove: uid }));
-    },
-  };
+  return state.devices;
+}
+
+export async function upsertDevice(uid: DeviceUid, name: string) {
+  await dbUpsertDevice(uid, name);
+  eventDevicesChange.notify();
+}
+
+export async function removeDevice(uid: DeviceUid) {
+  await dbRemoveDevice(uid);
+  eventDevicesChange.notify();
 }
