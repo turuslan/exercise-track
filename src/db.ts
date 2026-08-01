@@ -24,7 +24,9 @@ const migrations_path = Url.fileURLToPath(
 );
 
 function makeUid() {
-  return `_${Math.floor(0x100000000 * Math.random())}`;
+  return `_${
+    Math.floor(0x100000000 * Math.random()).toString(16).padStart(8, "0")
+  }`;
 }
 
 async function findOrInsert<T, K extends keyof T>(

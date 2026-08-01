@@ -18,7 +18,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 
 fun makeUid(): DeviceUid {
-    return "_${(0x100000000 * Math.random()).toLong()}"
+    return "_${(0x100000000 * Math.random()).toLong().toString(16).padStart(8, '0')}"
 }
 
 @Entity
