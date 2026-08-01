@@ -169,18 +169,18 @@ function UiDay(props: PropOnInput & { focus: boolean }) {
     }
     props.onInput?.(input, key);
   }, { isActive: props.focus ?? true });
+  const bar1 = "#".repeat(Math.min(count, TARGET));
+  const bar2 = ".".repeat(Math.max(0, TARGET - count));
+  const bar3 = "+".repeat(Math.max(0, count - TARGET));
+  const ago = last !== null ? time_scale.ago(new Date(last), now) : "";
   return (
     <Box flexDirection="column">
       <Box>
-        <Text>
-          {`${mmdd(now)} ${hhmm(now)}, ${count}/${TARGET} `}
+        <Text color={props.focus ? undefined : "gray"}>
+          {`${mmdd(now)} ${
+            hhmm(now)
+          }, ${count}/${TARGET} [${bar1}${bar2}${bar3}] ${ago}`}
         </Text>
-        <Text>
-          {`[${"#".repeat(Math.min(count, TARGET))}${
-            ".".repeat(Math.max(0, TARGET - count))
-          }${"+".repeat(Math.max(0, count - TARGET))}]`}
-        </Text>
-        {last !== null && <Text>, {time_scale.ago(new Date(last), now)}</Text>}
       </Box>
     </Box>
   );
