@@ -135,7 +135,9 @@ suspend fun dbDevices(): List<DbDevice> {
 suspend fun dbUpsertDevice(uid: DeviceUid, name: String) {
     db.ready()
 
-    dao.deviceUpsert(DbDevice(0, uid, name, true))
+    val device =
+        dao.deviceByUid(uid)?.copy(name = name, enabled = true) ?: DbDevice(0, uid, name, true)
+    dao.deviceUpsert(device)
 }
 
 suspend fun dbRemoveDevice(uid: DeviceUid) {
