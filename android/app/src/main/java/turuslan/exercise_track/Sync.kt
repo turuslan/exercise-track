@@ -52,7 +52,6 @@ class Sync(val scope: CoroutineScope) {
         wss[deviceUid] = null
         client.webSocket("ws://$address/ws") {
             val ws = this
-            if (wss.contains(deviceUid)) return@webSocket
             wss[deviceUid] = ws
             val sendQueue = MutableSharedFlow<String>()
             launch { sendQueue.collect { ws.send(it) } }
