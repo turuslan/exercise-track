@@ -101,7 +101,14 @@ function openWs(device_uid: DeviceUid) {
     );
     ws.send(JSON.stringify(devices));
   }
-  const unsubscribe_devices = eventDevicesChange.subscribe(sendDevices);
+  const unsubscribe_devices = eventDevicesChange.subscribe(async () => {
+    const devices = await dbDevices();
+    if (!devices.findIndex((device) => device.uid === device_uid)) {
+      ws.close();
+      return;
+    }
+    await sendDevices();
+  });
   ws.onopen = () => {
     sendDevices();
   };

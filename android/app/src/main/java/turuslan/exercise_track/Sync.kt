@@ -8,6 +8,7 @@ import io.ktor.server.routing.routing
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
+import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.ktor.websocket.send
 import kotlinx.coroutines.CompletableDeferred
@@ -60,7 +61,16 @@ class Sync(val scope: CoroutineScope) {
                 ws.send(json.encodeToString(devices))
             }
             sendDevices()
-            launch { eventDevicesChange.collect { sendDevices() } }
+            launch {
+                eventDevicesChange.collect {
+                    val devices = dbDevices()
+                    if (!devices.any { it.uid == deviceUid }) {
+                        ws.close()
+                        return@collect
+                    }
+                    sendDevices()
+                }
+            }
             for (frame in ws.incoming) {
                 val times = fromResponse(json.decodeFromString((frame as Frame.Text).readText()))
                 val added = dbMergeTimeMany(times)
