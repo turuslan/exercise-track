@@ -24,7 +24,7 @@ const migrations_path = Url.fileURLToPath(
 );
 
 function makeUid() {
-  return `_${
+  return `${process.platform}_${
     Math.floor(0x100000000 * Math.random()).toString(16).padStart(8, "0")
   }`;
 }
