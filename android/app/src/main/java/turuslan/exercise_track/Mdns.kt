@@ -84,6 +84,16 @@ class Mdns(context: Context, val scope: CoroutineScope) {
     suspend fun advertise(port: Int) {
         val thisDeviceUid = dbThisDeviceUid()
         Log.i("MDNS", "advertise $thisDeviceUid $port")
-        // TODO
+        val info = NsdServiceInfo()
+        info.serviceType = mdnsType
+        info.serviceName = thisDeviceUid
+        info.port = port
+        nsd.registerService(
+            info, NsdManager.PROTOCOL_DNS_SD, object : NsdManager.RegistrationListener {
+                override fun onServiceRegistered(service: NsdServiceInfo?) {}
+                override fun onRegistrationFailed(service: NsdServiceInfo?, e: Int) {}
+                override fun onServiceUnregistered(service: NsdServiceInfo?) {}
+                override fun onUnregistrationFailed(service: NsdServiceInfo?, e: Int) {}
+            })
     }
 }
