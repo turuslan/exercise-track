@@ -14,10 +14,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.State
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,6 +33,36 @@ import kotlin.math.min
 import kotlin.time.Duration.Companion.milliseconds
 
 const val DUPLICATE_TIME_MS = 5000
+
+data class DataDay(
+    val now: Time,
+    val times: List<Time>,
+) {
+    val min get() = time_scale.getGroup(now)
+    val max get() = time_scale.nextGroup(now)
+    val target = 10
+    val count get() = times.size
+    val last get() = times.lastOrNull()
+    val bar1 get() = "#".repeat(min(count, target))
+    val bar2 get() = ".".repeat(max(target - count, 0))
+    val bar3 get() = "+".repeat(max(count - target, 0))
+    val slash get() = "$count/$target"
+    val bar get() = "[${bar1}${bar2}${bar3}]"
+    val ago get() = last?.let { " ${time_scale.ago(it, now)}" } ?: ""
+
+    fun mayAdd(): Time? {
+        val time = timeNow()
+        val last = last ?: return time
+        if (DUPLICATE_TIME_MS <= differenceInMilliseconds(time, last)) {
+            return time
+        }
+        return null
+    }
+
+    fun shouldChange(time: Time): Boolean {
+        return time in min..max && !times.contains(time)
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -102,64 +129,53 @@ fun UiDevices(modifier: Modifier = Modifier) {
 
 @Composable
 fun UiDayWrap(modifier: Modifier = Modifier) {
-    val now = remember { mutableLongStateOf(timeNow()) }
+    val scope = rememberCoroutineScope()
+    val data = remember { mutableStateOf(DataDay(timeNow(), listOf())) }
     LaunchedEffect(Unit) {
         while (true) {
-            now.longValue = timeNow()
-            delay((time_scale.nextTick(now.longValue) - now.longValue).milliseconds)
+            val now = timeNow()
+            data.value = data.value.copy(now = now)
+            delay((time_scale.nextTick(now) - now).milliseconds)
         }
     }
-    val min = remember { derivedStateOf { time_scale.getGroup(now.longValue) } }
-    val max = remember { derivedStateOf { time_scale.nextGroup(now.longValue) } }
-    val times = remember { mutableStateOf(listOf<Time>()) }
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(min.value, max.value) {
+    LaunchedEffect(data.value.min, data.value.max) {
         scope.launch {
-            times.value = dbSelectTimeRange(min.value, max.value, null)
+            val times = dbSelectTimeRange(data.value.min, data.value.max, null)
                 .values.flatten().sorted()
+            data.value = data.value.copy(times = times)
         }
+    }
+    LaunchedEffect(Unit) {
         eventTimeAdded.collect { devices ->
             val added = devices.values.flatten()
-                .filter { it in min.value..max.value && !times.value.contains(it) }
+                .filter { data.value.shouldChange(it) }
             if (added.isEmpty()) return@collect
-            val updated = times.value.toMutableList()
-            updated.addAll(added)
-            updated.sort()
-            times.value = updated
+            val times = data.value.times.toMutableList()
+            times.addAll(added)
+            times.sort()
+            data.value = data.value.copy(times = times)
         }
     }
-    UiDay(times, now, modifier) {
+    UiDay(data, modifier) {
         scope.launch { eventTimeAdded.emit(dbInsertTime(it)) }
     }
 }
 
 @Composable
 fun UiDay(
-    times: State<List<Time>>,
-    now: MutableLongState,
+    data: State<DataDay>,
     modifier: Modifier = Modifier,
     addTime: (Time) -> Unit = {}
 ) {
-    val target = 10
     val fontSize = 32.sp
-    val count = times.value.size
-    val last = times.value.lastOrNull()
-    val bar1 = "#".repeat(min(count, target))
-    val bar2 = ".".repeat(max(target - count, 0))
-    val bar3 = "+".repeat(max(count - target, 0))
-    val ago = last?.let { time_scale.ago(it, now.longValue) } ?: ""
+    val data = data.value
     Column(modifier = modifier) {
         Button(
-            onClick = {
-                val time = timeNow()
-                if (last?.let { DUPLICATE_TIME_MS <= differenceInMilliseconds(time, it) } ?: true) {
-                    addTime(time)
-                }
-            },
+            onClick = { data.mayAdd()?.let { addTime(it) } },
             shape = RoundedCornerShape(1.dp),
         ) {
             Text(
-                "$count/$target $ago\n[$bar1$bar2$bar3]",
+                "${data.slash}${data.ago}\n${data.bar}",
                 fontFamily = FontFamily.Monospace,
                 lineHeight = fontSize,
                 fontSize = fontSize,
@@ -171,10 +187,10 @@ fun UiDay(
 
 @Preview(showBackground = true, widthDp = 340, heightDp = 600)
 @Composable
-fun GreetingPreview() {
-    val times = remember { mutableStateOf(listOf(100L, 200L, 300L)) }
-    val now = remember { mutableLongStateOf(0) }
+fun Preview() {
+    val m = 60000L
+    val data = remember { mutableStateOf(DataDay(22 * m, listOf(10 * m, 20 * m))) }
     ExerciseTrackTheme {
-        UiDay(times, now)
+        UiDay(data)
     }
 }
