@@ -20,18 +20,17 @@ import {
   useRef,
   useState,
 } from "react";
-import { dbSelectTimeRange, dbSelectTimeRangeMany } from "./src/db";
+import { dbSelectTimeRange } from "./src/db";
 import Koa from "koa";
 import KoaRouter from "@koa/router";
 import { mdns, Services } from "./src/mdns";
 import { useAddTime, useTimeRange } from "./src/use-time";
 import { UncontrolledTextInput } from "ink-text-input";
 import { useDbDevices } from "./src/use-device";
-import { toResponse, useSync, wsServerSession } from "./src/use-sync";
+import { toResponse, wsServerSession } from "./src/use-sync";
 import { debugPort } from "./src/debug";
 import koaWs from "koa-websocket";
 import { useThisDeviceUid } from "./src/use-this-device";
-import { TimeByDevice } from "./src/types";
 import { eventMdnsChange } from "./src/events";
 
 const port = debugPort() ?? 8087;
@@ -218,7 +217,6 @@ function multiGet<T>(xss: T[][], i: number) {
 }
 
 function UiDevices(props: PropOnInput) {
-  const sync = useSync();
   const db_devices = useDbDevices();
   const [state, setState] = useState({
     selected: null as { uid: string; multi_i: number } | null,
@@ -293,12 +291,6 @@ function UiDevices(props: PropOnInput) {
       if (!added_uids.includes(selected.uid)) return;
       setState((state) => ({ ...state, editing: selected.uid }));
       return;
-    }
-    if (input === "s") {
-      const { selected } = state;
-      if (selected === null) return;
-      if (!added_uids.includes(selected.uid)) return;
-      sync.sync(selected.uid);
     }
     props.onInput?.(input, key);
   });
@@ -384,10 +376,6 @@ router.get("/api/list", async (ctx) => {
   const arg_device_uid = koaQuery(ctx, "device_uid");
   const times = await dbSelectTimeRange(arg_min, arg_max, arg_device_uid);
   ctx.body = toResponse(times);
-});
-router.get("/api/sync", async (ctx) => {
-  const arg_devices = JSON.parse(koaQuery(ctx, "devices")!) as TimeByDevice;
-  ctx.body = toResponse(await dbSelectTimeRangeMany(arg_devices));
 });
 
 const ws_router = new KoaRouter();

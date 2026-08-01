@@ -61,31 +61,6 @@ function fromResponse(
   return res.times;
 }
 
-const syncing = new Set<DeviceUid>();
-
-async function syncLocked(device_uid: DeviceUid) {
-  const address = getAddress(device_uid);
-  if (address === null) return;
-  const api_url = new URL(`http://${address}/api/sync`);
-  const devices = await dbMaxTimeAll();
-  api_url.searchParams.set("devices", JSON.stringify(devices));
-  const res = await fetch(api_url);
-  if (!res.ok) {
-    return;
-  }
-  const times = fromResponse(await res.json());
-  await merge(times);
-}
-async function sync(device_uid: DeviceUid) {
-  if (syncing.has(device_uid)) return;
-  syncing.add(device_uid);
-  try {
-    await syncLocked(device_uid);
-  } finally {
-    syncing.delete(device_uid);
-  }
-}
-
 const wss = new Map<DeviceUid, WebSocket>();
 
 function openWs(device_uid: DeviceUid) {
@@ -126,12 +101,6 @@ async function syncAll() {
   for (const device of await dbDevices()) {
     openWs(device.uid);
   }
-}
-
-export function useSync() {
-  return {
-    sync,
-  };
 }
 
 export async function wsServerSession(ws: WebSocket) {
