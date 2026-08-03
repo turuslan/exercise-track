@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.RemoteViews
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Column
@@ -131,16 +132,18 @@ fun UiNotification(data: State<DataDay>) {
             .collect { ui ->
                 val notification = NotificationCompat.Builder(context, channelId)
                     .setOngoing(true)
-                    .setContentTitle(ui.title)
-                    .setContentText(ui.text)
                     .setShowWhen(false)
                     .setContentIntent(makeIntent(intentActionValueOpen))
-                    .addAction(
-                        R.drawable.ic_small_icon,
-                        "Do",
-                        makeIntent(intentActionValueAddTime)
-                    )
-                    .setSmallIcon(R.drawable.ic_small_icon)
+                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .apply {
+                        val root = RemoteViews(context.packageName, R.layout.notification)
+                        root.setTextViewText(R.id.textView, "${ui.title}\n${ui.text}")
+                        root.setOnClickPendingIntent(
+                            R.id.button,
+                            makeIntent(intentActionValueAddTime)
+                        )
+                        setContent(root)
+                    }
                     .build()
                 if (ActivityCompat.checkSelfPermission(
                         context,
