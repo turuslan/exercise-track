@@ -1,5 +1,9 @@
 package turuslan.exercise_track
 
+import android.Manifest
+import android.app.PendingIntent
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,10 +30,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -40,6 +47,8 @@ import kotlin.math.min
 import kotlin.time.Duration.Companion.milliseconds
 
 const val DUPLICATE_TIME_MS = 5000
+
+val dataDay = mutableStateOf(DataDay(timeNow(), listOf()))
 
 data class DataDay(
     val now: Time,
@@ -69,19 +78,41 @@ data class DataDay(
     fun shouldChange(time: Time): Boolean {
         return time in min..max && !times.contains(time)
     }
+
+    suspend fun tryAdd() {
+        mayAdd()?.let { eventTimeAdded.emit(dbInsertTime(it)) }
+    }
 }
 
+val intentActionKey = "intentAction"
+
+val intentActionValueOpen = 1
+val intentActionValueAddTime = 2
+
 @Composable
-fun UiNotification(data: State<DataDay>, addTime: (Time) -> Unit) {
+fun UiNotification(data: State<DataDay>) {
     val context = LocalContext.current
     val channelId = "notifications"
     val notificationId = 1
+    fun makeIntent(action: Int): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java)
+        intent.`package` = context.packageName
+        intent.putExtra(intentActionKey, action)
+        return PendingIntent.getActivity(
+            context, action,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE + PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
 
     data class Ui(val count: Int, val target: Int, val title: String, val text: String)
     LaunchedEffect(Unit) {
         val manager = NotificationManagerCompat.from(context)
         val channel =
-            NotificationChannelCompat.Builder(channelId, NotificationManagerCompat.IMPORTANCE_HIGH)
+            NotificationChannelCompat.Builder(
+                channelId,
+                NotificationManagerCompat.IMPORTANCE_DEFAULT
+            )
                 .setName(channelId).setSound(null, null).build()
         manager.createNotificationChannel(channel)
         snapshotFlow { data.value }
@@ -99,17 +130,41 @@ fun UiNotification(data: State<DataDay>, addTime: (Time) -> Unit) {
             .distinctUntilChanged()
             .collect { ui ->
                 val notification = NotificationCompat.Builder(context, channelId)
-                    .setSmallIcon(R.drawable.ic_small_icon)
+                    .setOngoing(true)
                     .setContentTitle(ui.title)
                     .setContentText(ui.text)
-                    .setOngoing(true)
-                    .setProgress(ui.target, ui.count, false).build()
-                manager.notify(notificationId, notification)
+                    .setShowWhen(false)
+                    .setContentIntent(makeIntent(intentActionValueOpen))
+                    .addAction(
+                        R.drawable.ic_small_icon,
+                        "Do",
+                        makeIntent(intentActionValueAddTime)
+                    )
+                    .setSmallIcon(R.drawable.ic_small_icon)
+                    .build()
+                if (ActivityCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    manager.notify(notificationId, notification)
+                }
             }
     }
 }
 
 class MainActivity : ComponentActivity() {
+    override fun onNewIntent(intent: Intent) {
+        if (intent.`package` != packageName) return
+        val action = intent.getIntExtra(intentActionKey, 0)
+        if (action == 0) return
+        if (action == intentActionValueOpen) return
+        if (action == intentActionValueAddTime) {
+            CoroutineScope(Dispatchers.Main).launch { dataDay.value.tryAdd() }
+            return
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         di(applicationContext, lifecycleScope)
@@ -200,20 +255,19 @@ fun UiDayWrap(modifier: Modifier = Modifier) {
             data.value = data.value.copy(times = times)
         }
     }
-    val addTime: (Time) -> Unit = { scope.launch { eventTimeAdded.emit(dbInsertTime(it)) } }
-    UiDay(data, modifier, addTime)
-    UiNotification(data, addTime)
+    UiDay(data, modifier, { scope.launch { data.value.tryAdd() } })
+    UiNotification(data)
 }
 
 @Composable
 fun UiDay(
-    data: State<DataDay>, modifier: Modifier = Modifier, addTime: (Time) -> Unit = {}
+    data: State<DataDay>, modifier: Modifier = Modifier, addTime: () -> Unit = {}
 ) {
     val fontSize = 32.sp
     val data = data.value
     Column(modifier = modifier) {
         Button(
-            onClick = { data.mayAdd()?.let { addTime(it) } },
+            onClick = addTime,
             shape = RoundedCornerShape(1.dp),
         ) {
             Text(
