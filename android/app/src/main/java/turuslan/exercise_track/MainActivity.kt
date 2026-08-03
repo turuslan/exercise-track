@@ -2,6 +2,8 @@ package turuslan.exercise_track
 
 import android.Manifest
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -96,14 +98,22 @@ fun UiNotification(data: State<DataDay>) {
     val channelId = "notifications"
     val notificationId = 1
     fun makeIntent(action: Int): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java)
+        val intent = if (action == intentActionValueOpen) {
+            Intent(context, MainActivity::class.java)
+        } else {
+            Intent(
+                context,
+                Receiver::class.java
+            )
+        }
+        Intent()
         intent.`package` = context.packageName
         intent.putExtra(intentActionKey, action)
-        return PendingIntent.getActivity(
-            context, action,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE + PendingIntent.FLAG_UPDATE_CURRENT,
-        )
+        val flags = PendingIntent.FLAG_IMMUTABLE + PendingIntent.FLAG_UPDATE_CURRENT
+        if (action == intentActionValueOpen) {
+            return PendingIntent.getActivity(context, action, intent, flags)
+        }
+        return PendingIntent.getBroadcast(context, action, intent, flags)
     }
 
     data class Ui(val count: Int, val target: Int, val title: String, val text: String)
@@ -156,9 +166,8 @@ fun UiNotification(data: State<DataDay>) {
     }
 }
 
-class MainActivity : ComponentActivity() {
-    override fun onNewIntent(intent: Intent) {
-        if (intent.`package` != packageName) return
+class Receiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
         val action = intent.getIntExtra(intentActionKey, 0)
         if (action == 0) return
         if (action == intentActionValueOpen) return
@@ -167,7 +176,9 @@ class MainActivity : ComponentActivity() {
             return
         }
     }
+}
 
+class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         di(applicationContext, lifecycleScope)
