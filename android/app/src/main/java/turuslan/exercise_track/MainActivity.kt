@@ -1,6 +1,7 @@
 package turuslan.exercise_track
 
 import android.Manifest
+import android.app.Application
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -38,6 +39,8 @@ import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
+import dagger.hilt.android.AndroidEntryPoint
+import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -102,8 +105,7 @@ fun UiNotification(data: State<DataDay>) {
             Intent(context, MainActivity::class.java)
         } else {
             Intent(
-                context,
-                Receiver::class.java
+                context, MyReceiver::class.java
             )
         }
         Intent()
@@ -119,54 +121,40 @@ fun UiNotification(data: State<DataDay>) {
     data class Ui(val count: Int, val target: Int, val title: String, val text: String)
     LaunchedEffect(Unit) {
         val manager = NotificationManagerCompat.from(context)
-        val channel =
-            NotificationChannelCompat.Builder(
-                channelId,
-                NotificationManagerCompat.IMPORTANCE_DEFAULT
-            )
-                .setName(channelId).setSound(null, null).build()
+        val channel = NotificationChannelCompat.Builder(
+            channelId, NotificationManagerCompat.IMPORTANCE_DEFAULT
+        ).setName(channelId).setSound(null, null).build()
         manager.createNotificationChannel(channel)
-        snapshotFlow { data.value }
-            .map { data ->
-                Ui(
-                    count = data.count,
-                    target = data.target,
-                    title = "${data.slash}${data.ago(", ")}",
-                    text = data.bar
-                        .replace('#', '＃')
-                        .replace('.', '・')
-                        .replace('+', '＋')
-                )
-            }
-            .distinctUntilChanged()
-            .collect { ui ->
-                val notification = NotificationCompat.Builder(context, channelId)
-                    .setOngoing(true)
-                    .setShowWhen(false)
+        snapshotFlow { data.value }.map { data ->
+            Ui(
+                count = data.count,
+                target = data.target,
+                title = "${data.slash}${data.ago(", ")}",
+                text = data.bar,
+            )
+        }.distinctUntilChanged().collect { ui ->
+            val notification =
+                NotificationCompat.Builder(context, channelId).setOngoing(true).setShowWhen(false)
                     .setContentIntent(makeIntent(intentActionValueOpen))
-                    .setSmallIcon(R.mipmap.ic_launcher)
-                    .apply {
+                    .setSmallIcon(R.mipmap.ic_launcher).apply {
                         val root = RemoteViews(context.packageName, R.layout.notification)
                         root.setTextViewText(R.id.textView, "${ui.title}\n${ui.text}")
                         root.setOnClickPendingIntent(
-                            R.id.button,
-                            makeIntent(intentActionValueAddTime)
+                            R.id.button, makeIntent(intentActionValueAddTime)
                         )
                         setContent(root)
-                    }
-                    .build()
-                if (ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ) == PackageManager.PERMISSION_GRANTED
-                ) {
-                    manager.notify(notificationId, notification)
-                }
+                    }.build()
+            if (ActivityCompat.checkSelfPermission(
+                    context, Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                manager.notify(notificationId, notification)
             }
+        }
     }
 }
 
-class Receiver : BroadcastReceiver() {
+class MyReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.getIntExtra(intentActionKey, 0)
         if (action == 0) return
@@ -178,6 +166,7 @@ class Receiver : BroadcastReceiver() {
     }
 }
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -304,3 +293,6 @@ fun Preview() {
         UiDay(data)
     }
 }
+
+@HiltAndroidApp
+class MyApplication : Application() {}
