@@ -22,39 +22,33 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.HiltAndroidApp
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import turuslan.exercise_track.ui.theme.ExerciseTrackTheme
+import javax.inject.Inject
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.time.Duration.Companion.milliseconds
 
 const val DUPLICATE_TIME_MS = 5000
-
-val dataDay = mutableStateOf(DataDay(timeNow(), listOf()))
 
 data class DataDay(
     val now: Time,
@@ -96,7 +90,7 @@ val intentActionValueOpen = 1
 val intentActionValueAddTime = 2
 
 @Composable
-fun UiNotification(data: State<DataDay>) {
+fun UiNotification(vm: DayViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val channelId = "notifications"
     val notificationId = 1
@@ -125,7 +119,7 @@ fun UiNotification(data: State<DataDay>) {
             channelId, NotificationManagerCompat.IMPORTANCE_DEFAULT
         ).setName(channelId).setSound(null, null).build()
         manager.createNotificationChannel(channel)
-        snapshotFlow { data.value }.map { data ->
+        vm.dataDay.map { data ->
             Ui(
                 count = data.count,
                 target = data.target,
@@ -154,13 +148,17 @@ fun UiNotification(data: State<DataDay>) {
     }
 }
 
+@AndroidEntryPoint
 class MyReceiver : BroadcastReceiver() {
+    @Inject
+    lateinit var repository: MyRepository
+
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.getIntExtra(intentActionKey, 0)
         if (action == 0) return
         if (action == intentActionValueOpen) return
         if (action == intentActionValueAddTime) {
-            CoroutineScope(Dispatchers.Main).launch { dataDay.value.tryAdd() }
+            repository.tryAddTime()
             return
         }
     }
@@ -232,45 +230,19 @@ fun UiDevices(modifier: Modifier = Modifier) {
 
 @Composable
 fun UiDayWrap(modifier: Modifier = Modifier) {
-    val scope = rememberCoroutineScope()
-    val data = remember { mutableStateOf(DataDay(timeNow(), listOf())) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            val now = timeNow()
-            data.value = data.value.copy(now = now)
-            delay((time_scale.nextTick(now) - now).milliseconds)
-        }
-    }
-    LaunchedEffect(data.value.min, data.value.max) {
-        scope.launch {
-            val times =
-                dbSelectTimeRange(data.value.min, data.value.max, null).values.flatten().sorted()
-            data.value = data.value.copy(times = times)
-        }
-    }
-    LaunchedEffect(Unit) {
-        eventTimeAdded.collect { devices ->
-            val added = devices.values.flatten().filter { data.value.shouldChange(it) }
-            if (added.isEmpty()) return@collect
-            val times = data.value.times.toMutableList()
-            times.addAll(added)
-            times.sort()
-            data.value = data.value.copy(times = times)
-        }
-    }
-    UiDay(data, modifier, { scope.launch { data.value.tryAdd() } })
-    UiNotification(data)
+    UiDay(modifier)
+    UiNotification()
 }
 
 @Composable
 fun UiDay(
-    data: State<DataDay>, modifier: Modifier = Modifier, addTime: () -> Unit = {}
+    modifier: Modifier = Modifier, vm: DayViewModel = hiltViewModel()
 ) {
     val fontSize = 32.sp
-    val data = data.value
+    val data = vm.dataDay.collectAsState().value
     Column(modifier = modifier) {
         Button(
-            onClick = addTime,
+            onClick = { vm.tryAddTime() },
             shape = RoundedCornerShape(1.dp),
         ) {
             Text(
@@ -281,16 +253,6 @@ fun UiDay(
                 modifier = Modifier.fillMaxWidth()
             )
         }
-    }
-}
-
-@Preview(showBackground = true, widthDp = 340, heightDp = 600)
-@Composable
-fun Preview() {
-    val m = 60000L
-    val data = remember { mutableStateOf(DataDay(22 * m, listOf(10 * m, 20 * m))) }
-    ExerciseTrackTheme {
-        UiDay(data)
     }
 }
 
