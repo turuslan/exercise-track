@@ -13,6 +13,7 @@ import io.ktor.websocket.readText
 import io.ktor.websocket.send
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
@@ -103,38 +104,38 @@ class Sync(val scope: CoroutineScope) {
             scope.launch { openWs(device.uid) }
         }
     }
+}
 
-    suspend fun server(): Int {
-        val server = embeddedServer(io.ktor.server.cio.CIO, port = 0) {
-            install(io.ktor.server.websocket.WebSockets)
-            routing {
-                webSocket("/ws") {
-                    val ws = this
-                    var devices: TimeByDevice = mapOf()
-                    val firstSend = CompletableDeferred<TimesByDevice>()
-                    val sendQueue = MutableSharedFlow<TimesByDevice>()
-                    suspend fun send(times: TimesByDevice) {
-                        val times = times.filter { !it.value.isEmpty() && devices.contains(it.key) }
-                        if (times.isEmpty()) return
-                        ws.send(json.encodeToString(toResponse(times)))
-                    }
-                    launch {
-                        send(firstSend.await())
-                        sendQueue.collect { send(it) }
-                    }
-                    launch { eventTimeAdded.collect { times -> sendQueue.emit(times) } }
-                    for (frame in ws.incoming) {
-                        devices = json.decodeFromString((frame as Frame.Text).readText())
-                        val times = dbSelectTimeRangeMany(devices)
-                        if (!firstSend.isCompleted) {
-                            firstSend.complete(times)
-                        } else {
-                            sendQueue.emit(times)
-                        }
+suspend fun runServer(db: Db, eventTimeAdded: Flow<TimesByDevice>): Int {
+    val server = embeddedServer(io.ktor.server.cio.CIO, port = 0) {
+        install(io.ktor.server.websocket.WebSockets)
+        routing {
+            webSocket("/ws") {
+                val ws = this
+                var devices: TimeByDevice = mapOf()
+                val firstSend = CompletableDeferred<TimesByDevice>()
+                val sendQueue = MutableSharedFlow<TimesByDevice>()
+                suspend fun send(times: TimesByDevice) {
+                    val times = times.filter { !it.value.isEmpty() && devices.contains(it.key) }
+                    if (times.isEmpty()) return
+                    ws.send(json.encodeToString(toResponse(times)))
+                }
+                launch {
+                    send(firstSend.await())
+                    sendQueue.collect { send(it) }
+                }
+                launch { eventTimeAdded.collect { times -> sendQueue.emit(times) } }
+                for (frame in ws.incoming) {
+                    devices = json.decodeFromString((frame as Frame.Text).readText())
+                    val times = db.ready.await().selectTimeRangeMany(devices)
+                    if (!firstSend.isCompleted) {
+                        firstSend.complete(times)
+                    } else {
+                        sendQueue.emit(times)
                     }
                 }
             }
-        }.start(false)
-        return server.engine.resolvedConnectors().first().port
-    }
+        }
+    }.start(false)
+    return server.engine.resolvedConnectors().first().port
 }

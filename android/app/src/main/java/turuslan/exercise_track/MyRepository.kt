@@ -1,6 +1,5 @@
 package turuslan.exercise_track
 
-import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +47,7 @@ class MyRepository @Inject constructor(val scope: MyScope, val db: Db, val mdns:
     init {
         scope.launch { mutThisDeviceUid.value = db.ready.await().thisDeviceUid() }
         scope.launch {
-            while(true) {
+            while (true) {
                 val now = timeNow()
                 mutDataDay.value = dataDay.value.copy(now = now)
                 delay((time_scale.nextTick(now) - now).milliseconds)
@@ -69,6 +68,9 @@ class MyRepository @Inject constructor(val scope: MyScope, val db: Db, val mdns:
             devicesMutex.withLock {
                 readDevices()
             }
+        }
+        scope.launch {
+            mdns.advertise(db.ready.await().thisDeviceUid(), runServer(db, eventTimeAdded))
         }
         // TODO: devices + mdns.devices => sync.syncAll()
     }
