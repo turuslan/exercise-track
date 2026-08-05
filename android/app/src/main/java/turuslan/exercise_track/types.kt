@@ -6,9 +6,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.serialization.json.Json
 
 typealias Time = Long
 typealias DeviceUid = String
+typealias DeviceLid = Int
 typealias TimeByDevice = Map<DeviceUid, Time>
 typealias MaxTimeByDevice = Map<DeviceUid, Time?>
 typealias TimesByDevice = Map<DeviceUid, List<Time>>
@@ -29,3 +31,5 @@ fun <T1, T2, R> combineState(
         transform(flow1.value, flow2.value)
     )
 }
+
+val json = Json.Default

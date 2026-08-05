@@ -97,8 +97,7 @@ class Mdns @Inject constructor(@ApplicationContext context: Context) {
         }
     }
 
-    suspend fun advertise(port: Int) {
-        val thisDeviceUid = dbThisDeviceUid()
+    fun advertise(thisDeviceUid: DeviceUid, port: Int) {
         Log.i("MDNS", "advertise $thisDeviceUid $port")
         val info = NsdServiceInfo()
         info.serviceType = mdnsType

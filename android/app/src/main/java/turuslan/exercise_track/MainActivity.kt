@@ -34,7 +34,6 @@ import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -160,7 +159,6 @@ class MyReceiver : BroadcastReceiver() {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        di(applicationContext, lifecycleScope)
         setContent {
             val padding = Modifier.padding(8.dp)
             ExerciseTrackTheme {

@@ -1,7 +1,10 @@
 package turuslan.exercise_track
 
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,12 +25,19 @@ class MyScope @Inject constructor() {
     fun launch(block: suspend CoroutineScope.() -> Unit) {
         scope.launch(block = block)
     }
+
+    fun <T> async(block: suspend CoroutineScope.() -> T): Deferred<T> {
+        return scope.async(block = block)
+    }
 }
 
 @Singleton
-class MyRepository @Inject constructor(val scope: MyScope, val mdns: Mdns) {
+class MyRepository @Inject constructor(val scope: MyScope, val db: Db, val mdns: Mdns) {
     private val mutDataDay = MutableStateFlow(DataDay(timeNow(), listOf()))
     val dataDay = mutDataDay.asStateFlow()
+
+    private val mutThisDeviceUid = MutableStateFlow<DeviceUid?>(null)
+    val thisDeviceUid = mutThisDeviceUid.asStateFlow()
 
     private val devicesMutex = Mutex()
     private val mutAddedDevices = MutableStateFlow<List<DbDevice>>(listOf())
@@ -36,16 +46,19 @@ class MyRepository @Inject constructor(val scope: MyScope, val mdns: Mdns) {
     private val eventTimeAdded = MutableSharedFlow<TimesByDevice>()
 
     init {
+        scope.launch { mutThisDeviceUid.value = db.ready.await().thisDeviceUid() }
         scope.launch {
-            val now = timeNow()
-            mutDataDay.value = dataDay.value.copy(now = now)
-            delay((time_scale.nextTick(now) - now).milliseconds)
+            while(true) {
+                val now = timeNow()
+                mutDataDay.value = dataDay.value.copy(now = now)
+                delay((time_scale.nextTick(now) - now).milliseconds)
+            }
         }
         scope.launch {
             dataDay.map { Pair(it.min, it.max) }.distinctUntilChanged().collect { readTimes() }
         }
         scope.launch {
-            mdns.discover(dbThisDeviceUid())
+            mdns.discover(db.ready.await().thisDeviceUid())
         }
         scope.launch {
             eventTimeAdded.collect {
@@ -62,22 +75,26 @@ class MyRepository @Inject constructor(val scope: MyScope, val mdns: Mdns) {
 
     private suspend fun readTimes() {
         val times =
-            dbSelectTimeRange(dataDay.value.min, dataDay.value.max, null).values.flatten().sorted()
+            db.ready.await()
+                .selectTimeRange(dataDay.value.min, dataDay.value.max, null).values.flatten()
+                .sorted()
         mutDataDay.value = dataDay.value.copy(times = times)
     }
 
     private suspend fun readDevices() {
-        mutAddedDevices.value = dbDevices()
+        db.ready.await().devices()
     }
 
     fun tryAddTime() {
-        scope.launch { dataDay.value.mayAdd()?.let { eventTimeAdded.emit(dbInsertTime(it)) } }
+        scope.launch {
+            dataDay.value.mayAdd()?.let { eventTimeAdded.emit(db.ready.await().insertTime(it)) }
+        }
     }
 
     fun addDevice(uid: DeviceUid) {
         scope.launch {
             devicesMutex.withLock {
-                dbUpsertDevice(uid, uid)
+                db.ready.await().upsertDevice(uid, uid)
                 readDevices()
             }
         }
@@ -86,7 +103,7 @@ class MyRepository @Inject constructor(val scope: MyScope, val mdns: Mdns) {
     fun removeDevice(uid: DeviceUid) {
         scope.launch {
             devicesMutex.withLock {
-                dbRemoveDevice(uid)
+                db.ready.await().removeDevice(uid)
                 readDevices()
             }
         }
