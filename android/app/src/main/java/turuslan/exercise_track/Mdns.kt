@@ -5,86 +5,96 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
 import android.util.Log
-import androidx.compose.runtime.mutableStateMapOf
-import kotlinx.coroutines.CoroutineScope
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class Mdns(context: Context, val scope: CoroutineScope) {
+typealias MdnsDevices = Map<DeviceUid, String>
+
+class Mdns @Inject constructor(@ApplicationContext context: Context) {
     val mdnsType = "_exercise-track._tcp"
-    val devices = mutableStateMapOf<DeviceUid, String>()
     val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
     val multicastLock =
         wifiManager.createMulticastLock("exercise-track").apply { setReferenceCounted(false) }!!
-    val nsd = context.applicationContext.getSystemService(Context.NSD_SERVICE) as NsdManager
-    val discoveryListener = object : NsdManager.DiscoveryListener {
-        override fun onDiscoveryStarted(type: String) {}
-        override fun onDiscoveryStopped(type: String) {}
-        override fun onServiceFound(service: NsdServiceInfo) {
-            scope.launch { resolveReq.send(service) }
+    val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
+
+    private val mutDevicesMap = mutableMapOf<DeviceUid, String>()
+    private val mutDevices = MutableStateFlow(mutDevicesMap.toMap())
+    val devices = mutDevices.asStateFlow()
+
+    suspend fun discover(thisDeviceUid: DeviceUid) {
+        fun add(deviceUid: DeviceUid, address: String) {
+            mutDevicesMap[deviceUid] = address
+            mutDevices.value = mutDevicesMap.toMap()
         }
 
-        override fun onServiceLost(service: NsdServiceInfo) {
-            remove(service.serviceName)
+        fun remove(deviceUid: DeviceUid) {
+            mutDevicesMap.remove(deviceUid)
+            mutDevices.value = mutDevicesMap.toMap()
         }
 
-        override fun onStartDiscoveryFailed(type: String, e: Int) {}
-        override fun onStopDiscoveryFailed(type: String, e: Int) {}
-    }
-    val resolveListener = object : NsdManager.ResolveListener {
-        override fun onResolveFailed(service: NsdServiceInfo, e: Int) {
-            remove(service.serviceName)
-            onResolve()
-        }
+        coroutineScope {
+            val scope = this
+            val resolveReq = Channel<NsdServiceInfo>()
+            val resolveRes = Channel<Unit>()
+            val discoveryListener = object : NsdManager.DiscoveryListener {
+                override fun onDiscoveryStarted(type: String) {}
+                override fun onDiscoveryStopped(type: String) {}
+                override fun onServiceFound(service: NsdServiceInfo) {
+                    scope.launch { resolveReq.send(service) }
+                }
 
-        override fun onServiceResolved(service: NsdServiceInfo) {
-            val host = service.host
-            if (!host.isLoopbackAddress) {
-                add(service.serviceName, "${host.toString().substring(1)}:${service.port}")
+                override fun onServiceLost(service: NsdServiceInfo) {
+                    remove(service.serviceName)
+                }
+
+                override fun onStartDiscoveryFailed(type: String, e: Int) {}
+                override fun onStopDiscoveryFailed(type: String, e: Int) {}
             }
-            onResolve()
-        }
+            val resolveListener = object : NsdManager.ResolveListener {
+                override fun onResolveFailed(service: NsdServiceInfo, e: Int) {
+                    remove(service.serviceName)
+                    onResolve()
+                }
 
-        fun onResolve() {
-            scope.launch { resolveRes.send(Unit) }
-        }
-    }
-    val resolveReq = Channel<NsdServiceInfo>()
-    val resolveRes = Channel<Unit>()
+                override fun onServiceResolved(service: NsdServiceInfo) {
+                    val host = service.host
+                    if (!host.isLoopbackAddress) {
+                        add(service.serviceName, "${host.toString().substring(1)}:${service.port}")
+                    }
+                    onResolve()
+                }
 
-    suspend fun resolve(service: NsdServiceInfo) {
-        nsd.resolveService(service, resolveListener)
-        resolveRes.receive()
+                fun onResolve() {
+                    scope.launch { resolveRes.send(Unit) }
+                }
+            }
+            try {
+                nsd.discoverServices(mdnsType, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+                for (service in resolveReq) {
+                    if (service.serviceName == thisDeviceUid) continue
+                    if (service.serviceName.startsWith(thisDeviceUid) && service.serviceName[thisDeviceUid.length] == ' ') continue
+                    nsd.resolveService(service, resolveListener)
+                    resolveRes.receive()
+                }
+            } finally {
+                nsd.stopServiceDiscovery(discoveryListener)
+            }
+        }
     }
 
     init {
         multicastLock.acquire()
-        nsd.discoverServices(mdnsType, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
-        scope.launch {
-            val thisDeviceUid = dbThisDeviceUid()
-            for (service in resolveReq) {
-                if (service.serviceName == thisDeviceUid) continue
-                if (service.serviceName.startsWith(thisDeviceUid) && service.serviceName[thisDeviceUid.length] == ' ') continue
-                resolve(service)
-            }
-        }
     }
 
     fun stop() {
         if (multicastLock.isHeld) {
             multicastLock.release()
         }
-        nsd.stopServiceDiscovery(discoveryListener)
-    }
-
-    fun add(deviceUid: DeviceUid, address: String) {
-        devices[deviceUid] = address
-        scope.launch { eventMdnsChange.emit(Unit) }
-    }
-
-    fun remove(deviceUid: DeviceUid) {
-        devices.remove(deviceUid)
-        scope.launch { eventMdnsChange.emit(Unit) }
     }
 
     suspend fun advertise(port: Int) {

@@ -23,9 +23,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -42,7 +39,6 @@ import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import turuslan.exercise_track.ui.theme.ExerciseTrackTheme
 import javax.inject.Inject
 import kotlin.math.max
@@ -77,10 +73,6 @@ data class DataDay(
 
     fun shouldChange(time: Time): Boolean {
         return time in min..max && !times.contains(time)
-    }
-
-    suspend fun tryAdd() {
-        mayAdd()?.let { eventTimeAdded.emit(dbInsertTime(it)) }
     }
 }
 
@@ -184,45 +176,29 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun UiDevices(modifier: Modifier = Modifier) {
-    val scope = rememberCoroutineScope()
-    val thisDeviceUid = remember { mutableStateOf<DeviceUid?>(null) }
-    val dbDevices = remember { mutableStateOf(listOf<DbDevice>()) }
-    LaunchedEffect(Unit) {
-        thisDeviceUid.value = dbThisDeviceUid()
-        dbDevices.value = dbDevices()
-        eventDevicesChange.collect { dbDevices.value = dbDevices() }
-    }
+fun UiDevices(modifier: Modifier = Modifier, vm: DevicesViewModel = hiltViewModel()) {
+    val thisDeviceUid = vm.thisDeviceUid.collectAsState().value
+    val addedDevices = vm.addedDevices.collectAsState().value
+    val unknownDevices = vm.unknownDevices.collectAsState().value
     Column(modifier = modifier) {
-        Text("this device uid: ${thisDeviceUid.value ?: "???"}")
+        Text("this device uid: ${thisDeviceUid ?: "???"}")
         Text("added devices:")
-        for (device in dbDevices.value) {
+        for (device in addedDevices) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val onOff = if (mdns.devices.contains(device.uid)) {
+                val onOff = if (device.online) {
                     "+"
                 } else {
                     "-"
                 }
                 Text("$onOff ${device.uid}", modifier = Modifier.weight(1f))
-                Button({
-                    scope.launch {
-                        dbRemoveDevice(device.uid)
-                        eventDevicesChange.emit(Unit)
-                    }
-                }) { Text("-") }
+                Button({ vm.removeDevice(device.uid) }) { Text("-") }
             }
         }
         Text("unknown devices:")
-        for (deviceUid in mdns.devices.keys.sorted()) {
-            if (dbDevices.value.find { d -> d.uid == deviceUid } != null) continue
+        for (deviceUid in unknownDevices) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(deviceUid, modifier = Modifier.weight(1f))
-                Button({
-                    scope.launch {
-                        dbUpsertDevice(deviceUid, deviceUid)
-                        eventDevicesChange.emit(Unit)
-                    }
-                }) { Text("+") }
+                Button({ vm.addDevice(deviceUid) }) { Text("+") }
             }
         }
     }
