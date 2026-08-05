@@ -84,7 +84,7 @@ class MyRepository @Inject constructor(val scope: MyScope, val db: Db, val mdns:
     }
 
     private suspend fun readDevices() {
-        db.ready.await().devices()
+        mutAddedDevices.value = db.ready.await().devices()
     }
 
     fun tryAddTime() {
