@@ -12,9 +12,11 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.ktor.websocket.send
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -60,15 +62,19 @@ fun toResponse(times: TimesByDevice): TimesResponse {
     return TimesResponse(times = times)
 }
 
-class Sync(val scope: CoroutineScope) {
+suspend fun runClient(
+    db: Db,
+    devices: StateFlow<List<DbDevice>>,
+    mdns: StateFlow<MdnsDevices>,
+    eventTimeAdded: MutableSharedFlow<TimesByDevice>
+) {
     val wss = mutableMapOf<DeviceUid, WebSocketSession?>()
     val client = HttpClient(io.ktor.client.engine.cio.CIO) {
         install(io.ktor.client.plugins.websocket.WebSockets)
     }
 
-    suspend fun openWs(deviceUid: DeviceUid) {
+    suspend fun openWs(deviceUid: DeviceUid, address: String) {
         if (wss.contains(deviceUid)) return
-        val address = mdns.devices[deviceUid] ?: return
         wss[deviceUid] = null
         client.webSocket("ws://$address/ws") {
             val ws = this
@@ -76,13 +82,13 @@ class Sync(val scope: CoroutineScope) {
             val sendQueue = MutableSharedFlow<String>()
             launch { sendQueue.collect { ws.send(it) } }
             suspend fun sendDevices() {
-                val devices = dbMaxTimeAll().mapValues { it.value?.let { it + 1 } ?: 0 }
+                val devices =
+                    db.ready.await().maxTimeAll().mapValues { it.value?.let { it + 1 } ?: 0 }
                 ws.send(json.encodeToString(devices))
             }
             sendDevices()
             launch {
-                eventDevicesChange.collect {
-                    val devices = dbDevices()
+                devices.collect { devices ->
                     if (!devices.any { it.uid == deviceUid }) {
                         ws.close()
                         return@collect
@@ -91,17 +97,26 @@ class Sync(val scope: CoroutineScope) {
                 }
             }
             for (frame in ws.incoming) {
-                val times = fromResponse(json.decodeFromString((frame as Frame.Text).readText()))
-                val added = dbMergeTimeMany(times)
+                val times =
+                    fromResponse(json.decodeFromString((frame as Frame.Text).readText()))
+                val added = db.ready.await().mergeTimeMany(times)
                 eventTimeAdded.emit(added)
             }
             wss.remove(deviceUid)
+            ws.close()
         }
     }
 
-    suspend fun syncAll() {
-        for (device in dbDevices()) {
-            scope.launch { openWs(device.uid) }
+    coroutineScope {
+        combine(devices, mdns) { devices, mdns ->
+            Pair(
+                devices.map { it.uid }.toSet(),
+                mdns
+            )
+        }.collect { (devices, mdns) ->
+            for (deviceUid in devices) {
+                openWs(deviceUid, mdns[deviceUid] ?: continue)
+            }
         }
     }
 }

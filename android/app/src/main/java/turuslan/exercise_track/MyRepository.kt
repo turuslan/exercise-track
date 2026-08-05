@@ -72,7 +72,9 @@ class MyRepository @Inject constructor(val scope: MyScope, val db: Db, val mdns:
         scope.launch {
             mdns.advertise(db.ready.await().thisDeviceUid(), runServer(db, eventTimeAdded))
         }
-        // TODO: devices + mdns.devices => sync.syncAll()
+        scope.launch {
+            runClient(db, addedDevices, mdns.devices, eventTimeAdded)
+        }
     }
 
     private suspend fun readTimes() {
