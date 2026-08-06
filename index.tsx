@@ -27,7 +27,7 @@ import { mdns, Services } from "./src/mdns";
 import { addTime, useTimeRange } from "./src/use-time";
 import { UncontrolledTextInput } from "ink-text-input";
 import { removeDevice, upsertDevice, useDbDevices } from "./src/use-device";
-import { toResponse, wsServerSession } from "./src/use-sync";
+import { closeAllWs, toResponse, wsServerSession } from "./src/use-sync";
 import { debugPort } from "./src/debug";
 import koaWs from "koa-websocket";
 import { useThisDeviceUid } from "./src/use-this-device";
@@ -392,6 +392,7 @@ const server = app.listen(port);
 mdns.advertise(port);
 
 ink.waitUntilExit().then(() => {
+  closeAllWs();
   server.close();
   mdns.stop();
 });

@@ -103,6 +103,7 @@ async function syncAll() {
   }
 }
 
+const serverWss = new Set<WebSocket>();
 export async function wsServerSession(ws: WebSocket) {
   let devices: TimeByDevice = null!;
   function send(times: TimesByDevice) {
@@ -121,7 +122,11 @@ export async function wsServerSession(ws: WebSocket) {
       send(times);
     }
   });
-  ws.onclose = () => unsubscribe();
+  serverWss.add(ws);
+  ws.onclose = () => {
+    serverWss.delete(ws);
+    unsubscribe();
+  };
   ws.onmessage = async (e) => {
     devices = JSON.parse(e.data);
     const times = await dbSelectTimeRangeMany(devices);
@@ -137,3 +142,8 @@ export async function wsServerSession(ws: WebSocket) {
 
 eventMdnsChange.subscribe(syncAll);
 eventDevicesChange.subscribe(syncAll);
+
+export function closeAllWs() {
+  for (const ws of wss.values()) ws.close();
+  for (const ws of serverWss) ws.close();
+}
