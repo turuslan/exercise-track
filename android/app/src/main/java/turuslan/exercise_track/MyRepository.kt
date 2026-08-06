@@ -32,6 +32,10 @@ class MyScope @Inject constructor() {
     }
 }
 
+// This repository does lots of work, because neither activity nor view-model live as long
+// as required for foreground service and notification.
+// Viewing status and adding new time via notification on lock screen is primary function,
+// as well as synchronizing.
 @Singleton
 class MyRepository @Inject constructor(
     @ApplicationContext context: Context,
