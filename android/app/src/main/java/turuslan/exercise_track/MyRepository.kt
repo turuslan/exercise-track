@@ -1,5 +1,7 @@
 package turuslan.exercise_track
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +33,12 @@ class MyScope @Inject constructor() {
 }
 
 @Singleton
-class MyRepository @Inject constructor(val scope: MyScope, val db: Db, val mdns: Mdns) {
+class MyRepository @Inject constructor(
+    @ApplicationContext context: Context,
+    val scope: MyScope,
+    val db: Db,
+    val mdns: Mdns,
+) {
     private val mutDataDay = MutableStateFlow(DataDay(timeNow(), listOf()))
     val dataDay = mutDataDay.asStateFlow()
 
@@ -56,25 +63,14 @@ class MyRepository @Inject constructor(val scope: MyScope, val db: Db, val mdns:
         scope.launch {
             dataDay.map { Pair(it.min, it.max) }.distinctUntilChanged().collect { readTimes() }
         }
-        scope.launch {
-            mdns.discover(db.ready.await().thisDeviceUid())
-        }
-        scope.launch {
-            eventTimeAdded.collect {
-                readTimes()
-            }
-        }
-        scope.launch {
-            devicesMutex.withLock {
-                readDevices()
-            }
-        }
+        scope.launch { mdns.discover(db.ready.await().thisDeviceUid()) }
+        scope.launch { eventTimeAdded.collect { readTimes() } }
+        scope.launch { devicesMutex.withLock { readDevices() } }
         scope.launch {
             mdns.advertise(db.ready.await().thisDeviceUid(), runServer(db, eventTimeAdded))
         }
-        scope.launch {
-            runClient(db, addedDevices, mdns.devices, eventTimeAdded)
-        }
+        scope.launch { runClient(db, addedDevices, mdns.devices, eventTimeAdded) }
+        scope.launch { runNotification(context, dataDay) }
     }
 
     private suspend fun readTimes() {

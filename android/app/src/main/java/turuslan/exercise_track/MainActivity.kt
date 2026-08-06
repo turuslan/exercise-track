@@ -21,11 +21,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,6 +34,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import turuslan.exercise_track.ui.theme.ExerciseTrackTheme
@@ -75,66 +74,54 @@ data class DataDay(
     }
 }
 
-val intentActionKey = "intentAction"
+const val intentActionAddTime = "turuslan.exercise_track.ADD_TIME"
 
-val intentActionValueOpen = 1
-val intentActionValueAddTime = 2
-
-@Composable
-fun UiNotification(vm: DayViewModel = hiltViewModel()) {
-    val context = LocalContext.current
+suspend fun runNotification(context: Context, dataDay: StateFlow<DataDay>) {
     val channelId = "notifications"
     val notificationId = 1
-    fun makeIntent(action: Int): PendingIntent {
-        val intent = if (action == intentActionValueOpen) {
-            Intent(context, MainActivity::class.java)
-        } else {
-            Intent(
-                context, MyReceiver::class.java
-            )
-        }
-        Intent()
-        intent.`package` = context.packageName
-        intent.putExtra(intentActionKey, action)
-        val flags = PendingIntent.FLAG_IMMUTABLE + PendingIntent.FLAG_UPDATE_CURRENT
-        if (action == intentActionValueOpen) {
-            return PendingIntent.getActivity(context, action, intent, flags)
-        }
-        return PendingIntent.getBroadcast(context, action, intent, flags)
-    }
+    val pendingIntentFlags = PendingIntent.FLAG_IMMUTABLE + PendingIntent.FLAG_UPDATE_CURRENT
+    val intentOpen = PendingIntent.getActivity(
+        context,
+        1,
+        Intent(context, MainActivity::class.java),
+        pendingIntentFlags
+    )
+    val intentAddTime = PendingIntent.getBroadcast(
+        context,
+        2,
+        Intent(intentActionAddTime, null, context, MyReceiver::class.java),
+        pendingIntentFlags
+    )
 
     data class Ui(val count: Int, val target: Int, val title: String, val text: String)
-    LaunchedEffect(Unit) {
-        val manager = NotificationManagerCompat.from(context)
-        val channel = NotificationChannelCompat.Builder(
-            channelId, NotificationManagerCompat.IMPORTANCE_DEFAULT
-        ).setName(channelId).setSound(null, null).build()
-        manager.createNotificationChannel(channel)
-        vm.dataDay.map { data ->
-            Ui(
-                count = data.count,
-                target = data.target,
-                title = "${data.slash}${data.ago(", ")}",
-                text = data.bar,
-            )
-        }.distinctUntilChanged().collect { ui ->
-            val notification =
-                NotificationCompat.Builder(context, channelId).setOngoing(true).setShowWhen(false)
-                    .setContentIntent(makeIntent(intentActionValueOpen))
-                    .setSmallIcon(R.mipmap.ic_launcher).apply {
-                        val root = RemoteViews(context.packageName, R.layout.notification)
-                        root.setTextViewText(R.id.textView, "${ui.title}\n${ui.text}")
-                        root.setOnClickPendingIntent(
-                            R.id.button, makeIntent(intentActionValueAddTime)
-                        )
-                        setContent(root)
-                    }.build()
-            if (ActivityCompat.checkSelfPermission(
-                    context, Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                manager.notify(notificationId, notification)
-            }
+
+    val manager = NotificationManagerCompat.from(context)
+    val channel = NotificationChannelCompat.Builder(
+        channelId, NotificationManagerCompat.IMPORTANCE_DEFAULT
+    ).setName(channelId).setSound(null, null).build()
+    manager.createNotificationChannel(channel)
+    dataDay.map { data ->
+        Ui(
+            count = data.count,
+            target = data.target,
+            title = "${data.slash}${data.ago(", ")}",
+            text = data.bar,
+        )
+    }.distinctUntilChanged().collect { ui ->
+        val notification =
+            NotificationCompat.Builder(context, channelId).setOngoing(true).setShowWhen(false)
+                .setContentIntent(intentOpen)
+                .setSmallIcon(R.mipmap.ic_launcher).apply {
+                    val root = RemoteViews(context.packageName, R.layout.notification)
+                    root.setTextViewText(R.id.textView, "${ui.title}\n${ui.text}")
+                    root.setOnClickPendingIntent(R.id.button, intentAddTime)
+                    setContent(root)
+                }.build()
+        if (ActivityCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            manager.notify(notificationId, notification)
         }
     }
 }
@@ -145,10 +132,7 @@ class MyReceiver : BroadcastReceiver() {
     lateinit var repository: MyRepository
 
     override fun onReceive(context: Context, intent: Intent) {
-        val action = intent.getIntExtra(intentActionKey, 0)
-        if (action == 0) return
-        if (action == intentActionValueOpen) return
-        if (action == intentActionValueAddTime) {
+        if (intent.action == intentActionAddTime) {
             repository.tryAddTime()
             return
         }
@@ -164,7 +148,7 @@ class MainActivity : ComponentActivity() {
             ExerciseTrackTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Column(modifier = Modifier.padding(innerPadding)) {
-                        UiDayWrap(modifier = padding)
+                        UiDay(modifier = padding)
                         UiDevices(modifier = padding)
                     }
                 }
@@ -200,12 +184,6 @@ fun UiDevices(modifier: Modifier = Modifier, vm: DevicesViewModel = hiltViewMode
             }
         }
     }
-}
-
-@Composable
-fun UiDayWrap(modifier: Modifier = Modifier) {
-    UiDay(modifier)
-    UiNotification()
 }
 
 @Composable
