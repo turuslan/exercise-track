@@ -79,29 +79,30 @@ const db = new TypeOrm.DataSource({
 export const AppDataSource = db;
 let _db_ready: Promise<void> = null!;
 async function dbReady() {
-  _db_ready ??= db.initialize().then(() =>
-    db.transaction(async (tx) => {
-      const this_device_uid_kv = await findOrInsert(
-        tx,
-        DbKv,
-        "key",
-        "this_device_uid",
-        (kv) => {
-          kv.value = debugUid() ?? makeUid();
-        },
-      );
-      this_device = await findOrInsert(
-        tx,
-        DbDevice,
-        "uid",
-        this_device_uid_kv.value,
-        (device) => {
-          device.uid = this_device_uid_kv.value;
-          device.name = "this device";
-          device.enabled = true;
-        },
-      );
-    })
+  _db_ready ??= db.initialize().then(async () => await db.runMigrations()).then(
+    async () =>
+      await db.transaction(async (tx) => {
+        const this_device_uid_kv = await findOrInsert(
+          tx,
+          DbKv,
+          "key",
+          "this_device_uid",
+          (kv) => {
+            kv.value = debugUid() ?? makeUid();
+          },
+        );
+        this_device = await findOrInsert(
+          tx,
+          DbDevice,
+          "uid",
+          this_device_uid_kv.value,
+          (device) => {
+            device.uid = this_device_uid_kv.value;
+            device.name = "this device";
+            device.enabled = true;
+          },
+        );
+      })
   );
   await _db_ready;
 }
