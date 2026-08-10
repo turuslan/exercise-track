@@ -18,6 +18,10 @@ typealias TimeByDevice = Map<DeviceUid, Time>
 typealias MaxTimeByDevice = Map<DeviceUid, Time?>
 typealias TimesByDevice = Map<DeviceUid, List<Time>>
 
+fun makeUid(): DeviceUid {
+    return "android_${(0x100000000 * Math.random()).toLong().toString(16).padStart(8, '0')}"
+}
+
 fun <T, R> StateFlow<T>.mapState(scope: CoroutineScope, transform: (T) -> R): StateFlow<R> {
     return map(transform).stateIn(scope, SharingStarted.Eagerly, transform(value))
 }

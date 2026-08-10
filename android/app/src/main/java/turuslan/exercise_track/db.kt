@@ -19,12 +19,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import javax.inject.Inject
 
-val networkEnabledKey = "network_enabled"
+const val networkEnabledKey = "network_enabled"
 typealias NetworkEnabledValue = Boolean
-
-fun makeUid(): DeviceUid {
-    return "android_${(0x100000000 * Math.random()).toLong().toString(16).padStart(8, '0')}"
-}
 
 @Entity
 data class DbKv(

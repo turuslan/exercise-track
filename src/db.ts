@@ -4,6 +4,7 @@ import { debugDb, debugTypeormSynchronize, debugUid } from "./debug";
 import {
   DeviceUid,
   filterGroup,
+  makeUid,
   mapGroup,
   MaxTimeByDevice,
   Time,
@@ -22,12 +23,6 @@ const db_path = debugDb() ?? Url.fileURLToPath(
 const migrations_path = Url.fileURLToPath(
   Url.resolve(import.meta.url, "migrations/*.ts"),
 );
-
-function makeUid() {
-  return `${process.platform}_${
-    Math.floor(0x100000000 * Math.random()).toString(16).padStart(8, "0")
-  }`;
-}
 
 async function findOrInsert<T, K extends keyof T>(
   tx: TypeOrm.EntityManager,

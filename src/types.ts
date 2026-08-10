@@ -19,3 +19,9 @@ export function filterGroup<T>(
 export function flatGroup<T>(group: Record<string, T[]>) {
   return Object.values(group).flat();
 }
+
+export function makeUid() {
+  return `${process.platform}_${
+    Math.floor(0x100000000 * Math.random()).toString(16).padStart(8, "0")
+  }`;
+}
