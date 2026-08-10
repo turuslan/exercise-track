@@ -1,6 +1,7 @@
 package turuslan.exercise_track
 
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
@@ -9,6 +10,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 @Composable
@@ -22,9 +24,12 @@ fun UiPower(modifier: Modifier = Modifier, vm: PowerViewModel = hiltViewModel())
             )
             Text("Network")
         }
-        Button({
-            vm.exit()
-            context.findActivity()?.finishAndRemoveTask()
-        }) { Text("Exit") }
+        Button(
+            onClick = {
+                vm.exit()
+                context.findActivity()?.finishAndRemoveTask()
+            },
+            shape = RoundedCornerShape(1.dp),
+        ) { Text("Exit") }
     }
 }

@@ -2,12 +2,14 @@ package turuslan.exercise_track
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
 @Composable
@@ -26,14 +28,20 @@ fun UiDevices(modifier: Modifier = Modifier, vm: DevicesViewModel = hiltViewMode
                     "-"
                 }
                 Text("$onOff ${device.uid}", modifier = Modifier.weight(1f))
-                Button({ vm.removeDevice(device.uid) }) { Text("-") }
+                Button(
+                    onClick = { vm.removeDevice(device.uid) },
+                    shape = RoundedCornerShape(1.dp),
+                ) { Text("-") }
             }
         }
         Text("unknown devices:")
         for (deviceUid in unknownDevices) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(deviceUid, modifier = Modifier.weight(1f))
-                Button({ vm.addDevice(deviceUid) }) { Text("+") }
+                Button(
+                    onClick = { vm.addDevice(deviceUid) },
+                    shape = RoundedCornerShape(1.dp),
+                ) { Text("+") }
             }
         }
     }
