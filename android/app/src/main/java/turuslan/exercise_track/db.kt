@@ -14,7 +14,13 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import javax.inject.Inject
+
+val networkEnabledKey = "network_enabled"
+typealias NetworkEnabledValue = Boolean
 
 fun makeUid(): DeviceUid {
     return "android_${(0x100000000 * Math.random()).toLong().toString(16).padStart(8, '0')}"
@@ -91,7 +97,7 @@ abstract class DbRoom : RoomDatabase() {
     abstract fun dao(): DbDao
 }
 
-class Db @Inject constructor(@ApplicationContext context: Context, scope: MyScope) {
+class Db @Inject constructor(@ApplicationContext context: Context) {
     private val room = Room.databaseBuilder(context, DbRoom::class.java, "db").build()
 
     data class Ready(private val dao: DbDao, private val thisDevice: DbDevice) {
@@ -165,9 +171,17 @@ class Db @Inject constructor(@ApplicationContext context: Context, scope: MyScop
         suspend fun mergeTimeMany(devices: TimesByDevice): TimesByDevice {
             return devices.mapValues { mergeTime(it.key, it.value) }.filterValues { !it.isEmpty() }
         }
+
+        suspend fun networkEnabled(): NetworkEnabledValue? {
+            return dao.kvGet(networkEnabledKey)?.let { json.decodeFromString(it) }
+        }
+
+        suspend fun setNetworkEnabled(enable: NetworkEnabledValue) {
+            dao.kvSet(DbKv(networkEnabledKey, json.encodeToString(enable)))
+        }
     }
 
-    val ready = scope.async {
+    val ready = CoroutineScope(Dispatchers.IO).async {
         val dao = room.dao()
         val thisDeviceUidKey = "this_device_uid"
         var thisDeviceUid = dao.kvGet(thisDeviceUidKey)

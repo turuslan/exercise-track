@@ -6,6 +6,7 @@ import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,11 +16,19 @@ import javax.inject.Inject
 
 typealias MdnsDevices = Map<DeviceUid, String>
 
+suspend fun multicastLock(context: Context) {
+    val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    val multicastLock = wifiManager.createMulticastLock("exercise-track")!!
+    multicastLock.acquire()
+    try {
+        awaitCancellation()
+    } finally {
+        multicastLock.release()
+    }
+}
+
 class Mdns @Inject constructor(@ApplicationContext context: Context) {
     val mdnsType = "_exercise-track._tcp"
-    val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
-    val multicastLock =
-        wifiManager.createMulticastLock("exercise-track").apply { setReferenceCounted(false) }!!
     val nsd = context.getSystemService(Context.NSD_SERVICE) as NsdManager
 
     private val mutDevicesMap = mutableMapOf<DeviceUid, String>()
@@ -83,32 +92,29 @@ class Mdns @Inject constructor(@ApplicationContext context: Context) {
                 }
             } finally {
                 nsd.stopServiceDiscovery(discoveryListener)
+                mutDevicesMap.clear()
+                mutDevices.value = mutDevicesMap.toMap()
             }
         }
     }
 
-    init {
-        multicastLock.acquire()
-    }
-
-    fun stop() {
-        if (multicastLock.isHeld) {
-            multicastLock.release()
-        }
-    }
-
-    fun advertise(thisDeviceUid: DeviceUid, port: Int) {
+    suspend fun advertise(thisDeviceUid: DeviceUid, port: Int) {
         Log.i("MDNS", "advertise $thisDeviceUid $port")
         val info = NsdServiceInfo()
         info.serviceType = mdnsType
         info.serviceName = thisDeviceUid
         info.port = port
-        nsd.registerService(
-            info, NsdManager.PROTOCOL_DNS_SD, object : NsdManager.RegistrationListener {
-                override fun onServiceRegistered(service: NsdServiceInfo?) {}
-                override fun onRegistrationFailed(service: NsdServiceInfo?, e: Int) {}
-                override fun onServiceUnregistered(service: NsdServiceInfo?) {}
-                override fun onUnregistrationFailed(service: NsdServiceInfo?, e: Int) {}
-            })
+        val listener = object : NsdManager.RegistrationListener {
+            override fun onServiceRegistered(service: NsdServiceInfo) {}
+            override fun onRegistrationFailed(service: NsdServiceInfo, e: Int) {}
+            override fun onServiceUnregistered(service: NsdServiceInfo) {}
+            override fun onUnregistrationFailed(service: NsdServiceInfo, e: Int) {}
+        }
+        nsd.registerService(info, NsdManager.PROTOCOL_DNS_SD, listener)
+        try {
+            awaitCancellation()
+        } finally {
+            nsd.unregisterService(listener)
+        }
     }
 }

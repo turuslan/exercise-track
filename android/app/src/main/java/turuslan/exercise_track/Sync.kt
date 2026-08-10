@@ -12,6 +12,7 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.ktor.websocket.send
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -121,7 +122,11 @@ suspend fun runClient(
     }
 }
 
-suspend fun runServer(db: Db, eventTimeAdded: Flow<TimesByDevice>): Int {
+suspend fun runServer(
+    db: Db,
+    eventTimeAdded: Flow<TimesByDevice>,
+    withPort: suspend (Int) -> Unit
+) {
     val server = embeddedServer(io.ktor.server.cio.CIO, port = 0) {
         install(io.ktor.server.websocket.WebSockets)
         routing {
@@ -152,5 +157,11 @@ suspend fun runServer(db: Db, eventTimeAdded: Flow<TimesByDevice>): Int {
             }
         }
     }.start(false)
-    return server.engine.resolvedConnectors().first().port
+    try {
+        val port = server.engine.resolvedConnectors().first().port
+        withPort(port)
+        awaitCancellation()
+    } finally {
+        server.stop()
+    }
 }

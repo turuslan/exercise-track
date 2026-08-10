@@ -1,5 +1,8 @@
 package turuslan.exercise_track
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +33,12 @@ fun <T1, T2, R> combineState(
         SharingStarted.Eagerly,
         transform(flow1.value, flow2.value)
     )
+}
+
+fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 val json = Json.Default

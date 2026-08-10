@@ -18,12 +18,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,8 +34,10 @@ import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.AndroidViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.HiltAndroidApp
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -100,29 +104,33 @@ suspend fun runNotification(context: Context, dataDay: StateFlow<DataDay>) {
         channelId, NotificationManagerCompat.IMPORTANCE_DEFAULT
     ).setName(channelId).setSound(null, null).build()
     manager.createNotificationChannel(channel)
-    dataDay.map { data ->
-        Ui(
-            count = data.count,
-            target = data.target,
-            title = "${data.slash}${data.ago(", ")}",
-            text = data.bar,
-        )
-    }.distinctUntilChanged().collect { ui ->
-        val notification =
-            NotificationCompat.Builder(context, channelId).setOngoing(true).setShowWhen(false)
-                .setContentIntent(intentOpen)
-                .setSmallIcon(R.mipmap.ic_launcher).apply {
-                    val root = RemoteViews(context.packageName, R.layout.notification)
-                    root.setTextViewText(R.id.textView, "${ui.title}\n${ui.text}")
-                    root.setOnClickPendingIntent(R.id.button, intentAddTime)
-                    setContent(root)
-                }.build()
-        if (ActivityCompat.checkSelfPermission(
-                context, Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            manager.notify(notificationId, notification)
+    try {
+        dataDay.map { data ->
+            Ui(
+                count = data.count,
+                target = data.target,
+                title = "${data.slash}${data.ago(", ")}",
+                text = data.bar,
+            )
+        }.distinctUntilChanged().collect { ui ->
+            val notification =
+                NotificationCompat.Builder(context, channelId).setOngoing(true).setShowWhen(false)
+                    .setContentIntent(intentOpen)
+                    .setSmallIcon(R.mipmap.ic_launcher).apply {
+                        val root = RemoteViews(context.packageName, R.layout.notification)
+                        root.setTextViewText(R.id.textView, "${ui.title}\n${ui.text}")
+                        root.setOnClickPendingIntent(R.id.button, intentAddTime)
+                        setContent(root)
+                    }.build()
+            if (ActivityCompat.checkSelfPermission(
+                    context, Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                manager.notify(notificationId, notification)
+            }
         }
+    } finally {
+        manager.cancel(notificationId)
     }
 }
 
@@ -149,7 +157,8 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Column(modifier = Modifier.padding(innerPadding)) {
                         UiDay(modifier = padding)
-                        UiDevices(modifier = padding)
+                        UiDevices(modifier = padding.weight(1f))
+                        UiPower(modifier = padding)
                     }
                 }
             }
@@ -205,6 +214,40 @@ fun UiDay(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+}
+
+@HiltViewModel
+class PowerViewModel @Inject constructor(
+    val repository: MyRepository,
+    application: Application,
+) : AndroidViewModel(application) {
+    val enableNetwork = repository.enableNetwork
+
+    fun setEnableNetwork(enable: Boolean) {
+        repository.setEnableNetwork(enable)
+    }
+
+    fun exit() {
+        repository.exit()
+    }
+}
+
+@Composable
+fun UiPower(modifier: Modifier = Modifier, vm: PowerViewModel = hiltViewModel()) {
+    val context = LocalContext.current
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                vm.enableNetwork.collectAsState().value,
+                { vm.setEnableNetwork(it) },
+            )
+            Text("Network")
+        }
+        Button({
+            vm.exit()
+            context.findActivity()?.finishAndRemoveTask()
+        }) { Text("Exit") }
     }
 }
 

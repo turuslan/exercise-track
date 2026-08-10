@@ -3,34 +3,25 @@ package turuslan.exercise_track
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.system.exitProcess
 import kotlin.time.Duration.Companion.milliseconds
-
-@Singleton
-class MyScope @Inject constructor() {
-    private val scope = CoroutineScope(Dispatchers.Default)
-
-    fun launch(block: suspend CoroutineScope.() -> Unit) {
-        scope.launch(block = block)
-    }
-
-    fun <T> async(block: suspend CoroutineScope.() -> T): Deferred<T> {
-        return scope.async(block = block)
-    }
-}
 
 // This repository does lots of work, because neither activity nor view-model live as long
 // as required for foreground service and notification.
@@ -38,11 +29,16 @@ class MyScope @Inject constructor() {
 // as well as synchronizing.
 @Singleton
 class MyRepository @Inject constructor(
-    @ApplicationContext context: Context,
-    val scope: MyScope,
+    @param:ApplicationContext val context: Context,
     val db: Db,
     val mdns: Mdns,
 ) {
+    private val scope = CoroutineScope(Dispatchers.Default)
+    private var jobs: List<Job>
+
+    private val mutEnableNetwork = MutableStateFlow(false)
+    val enableNetwork = mutEnableNetwork.asStateFlow()
+
     private val mutDataDay = MutableStateFlow(DataDay(timeNow(), listOf()))
     val dataDay = mutDataDay.asStateFlow()
 
@@ -56,25 +52,52 @@ class MyRepository @Inject constructor(
     private val eventTimeAdded = MutableSharedFlow<TimesByDevice>()
 
     init {
-        scope.launch { mutThisDeviceUid.value = db.ready.await().thisDeviceUid() }
-        scope.launch {
-            while (true) {
-                val now = timeNow()
-                mutDataDay.value = dataDay.value.copy(now = now)
-                delay((time_scale.nextTick(now) - now).milliseconds)
-            }
+        jobs = listOf(
+            scope.launch {
+                var job: Job? = null
+                try {
+                    enableNetwork.collect { enable ->
+                        job?.cancelAndJoin()
+                        job = null
+                        if (enable ?: false) {
+                            job = launch { runNetwork() }
+                        }
+                    }
+                } finally {
+                    job?.cancelAndJoin()
+                }
+            },
+            scope.launch { mutThisDeviceUid.value = db.ready.await().thisDeviceUid() },
+            scope.launch { mutEnableNetwork.value = db.ready.await().networkEnabled() ?: false },
+            scope.launch {
+                while (true) {
+                    val now = timeNow()
+                    mutDataDay.value = dataDay.value.copy(now = now)
+                    delay((time_scale.nextTick(now) - now).milliseconds)
+                }
+            },
+            scope.launch {
+                dataDay.map { Pair(it.min, it.max) }.distinctUntilChanged().collect { readTimes() }
+            },
+            scope.launch { eventTimeAdded.collect { readTimes() } },
+            scope.launch { devicesMutex.withLock { readDevices() } },
+            scope.launch { runNotification(context, dataDay) },
+        )
+    }
+
+    private suspend fun runNetwork() {
+        coroutineScope {
+            listOf(
+                launch { multicastLock(context) },
+                launch { mdns.discover(db.ready.await().thisDeviceUid()) },
+                launch {
+                    runServer(db, eventTimeAdded) { port ->
+                        mdns.advertise(db.ready.await().thisDeviceUid(), port)
+                    }
+                },
+                launch { runClient(db, addedDevices, mdns.devices, eventTimeAdded) },
+            ).joinAll()
         }
-        scope.launch {
-            dataDay.map { Pair(it.min, it.max) }.distinctUntilChanged().collect { readTimes() }
-        }
-        scope.launch { mdns.discover(db.ready.await().thisDeviceUid()) }
-        scope.launch { eventTimeAdded.collect { readTimes() } }
-        scope.launch { devicesMutex.withLock { readDevices() } }
-        scope.launch {
-            mdns.advertise(db.ready.await().thisDeviceUid(), runServer(db, eventTimeAdded))
-        }
-        scope.launch { runClient(db, addedDevices, mdns.devices, eventTimeAdded) }
-        scope.launch { runNotification(context, dataDay) }
     }
 
     private suspend fun readTimes() {
@@ -110,6 +133,20 @@ class MyRepository @Inject constructor(
                 db.ready.await().removeDevice(uid)
                 readDevices()
             }
+        }
+    }
+
+    fun setEnableNetwork(enable: Boolean) {
+        mutEnableNetwork.value = enable
+        scope.launch { db.ready.await().setNetworkEnabled(enable) }
+    }
+
+    fun exit() {
+        mutEnableNetwork.value = false
+        scope.cancel()
+        CoroutineScope(Dispatchers.Default).launch {
+            jobs.joinAll()
+            exitProcess(0)
         }
     }
 }
