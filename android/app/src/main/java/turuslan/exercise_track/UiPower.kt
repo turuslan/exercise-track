@@ -26,8 +26,10 @@ fun UiPower(modifier: Modifier = Modifier, vm: PowerViewModel = hiltViewModel())
         }
         Button(
             onClick = {
+                val activity = context.findActivity()
+                activity?.finishAndRemoveTask()
+                activity?.stopService(myServiceIntent(context))
                 vm.exit()
-                context.findActivity()?.finishAndRemoveTask()
             },
             shape = RoundedCornerShape(1.dp),
         ) { Text("Exit") }

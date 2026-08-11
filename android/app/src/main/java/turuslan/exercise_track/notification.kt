@@ -1,7 +1,9 @@
 package turuslan.exercise_track
 
 import android.Manifest
+import android.app.Notification
 import android.app.PendingIntent
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -16,56 +18,71 @@ import kotlinx.coroutines.flow.map
 
 const val intentActionAddTime = "turuslan.exercise_track.ADD_TIME"
 
-suspend fun runNotification(context: Context, dataDay: StateFlow<DataDay>) {
-    val channelId = "notifications"
-    val notificationId = 1
-    val pendingIntentFlags = PendingIntent.FLAG_IMMUTABLE + PendingIntent.FLAG_UPDATE_CURRENT
-    val intentOpen = PendingIntent.getActivity(
+class MyNotification(private val context: Context, private val dataDay: StateFlow<DataDay>) {
+    data class Ui(val count: Int, val target: Int, val title: String, val text: String)
+
+    private val channelId = "notifications"
+    private val notificationId = 1
+    private val pendingIntentFlags =
+        PendingIntent.FLAG_IMMUTABLE + PendingIntent.FLAG_UPDATE_CURRENT
+    private val intentOpen = PendingIntent.getActivity(
         context,
         1,
         Intent(context, MainActivity::class.java),
         pendingIntentFlags
     )
-    val intentAddTime = PendingIntent.getBroadcast(
+    private val intentAddTime = PendingIntent.getBroadcast(
         context,
         2,
         Intent(intentActionAddTime, null, context, MyReceiver::class.java),
         pendingIntentFlags
     )
+    private val manager = NotificationManagerCompat.from(context)
 
-    data class Ui(val count: Int, val target: Int, val title: String, val text: String)
+    init {
+        val channel = NotificationChannelCompat.Builder(
+            channelId, NotificationManagerCompat.IMPORTANCE_DEFAULT
+        ).setName(channelId).setSound(null, null).build()
+        manager.createNotificationChannel(channel)
+    }
 
-    val manager = NotificationManagerCompat.from(context)
-    val channel = NotificationChannelCompat.Builder(
-        channelId, NotificationManagerCompat.IMPORTANCE_DEFAULT
-    ).setName(channelId).setSound(null, null).build()
-    manager.createNotificationChannel(channel)
-    try {
-        dataDay.map { data ->
-            Ui(
-                count = data.count,
-                target = data.target,
-                title = "${data.slash}${data.ago(", ")}",
-                text = data.bar,
-            )
-        }.distinctUntilChanged().collect { ui ->
-            val notification =
-                NotificationCompat.Builder(context, channelId).setOngoing(true).setShowWhen(false)
-                    .setContentIntent(intentOpen)
-                    .setSmallIcon(R.mipmap.ic_launcher).apply {
-                        val root = RemoteViews(context.packageName, R.layout.notification)
-                        root.setTextViewText(R.id.textView, "${ui.title}\n${ui.text}")
-                        root.setOnClickPendingIntent(R.id.button, intentAddTime)
-                        setContent(root)
-                    }.build()
-            if (ActivityCompat.checkSelfPermission(
-                    context, Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                manager.notify(notificationId, notification)
+    private fun mapUi(data: DataDay): Ui {
+        return Ui(
+            count = data.count,
+            target = data.target,
+            title = "${data.slash}${data.ago(", ")}",
+            text = data.bar,
+        )
+    }
+
+    private fun makeNotification(ui: Ui): Notification {
+        return NotificationCompat.Builder(context, channelId).setOngoing(true)
+            .setShowWhen(false)
+            .setContentIntent(intentOpen)
+            .setSmallIcon(R.mipmap.ic_launcher).apply {
+                val root = RemoteViews(context.packageName, R.layout.notification)
+                root.setTextViewText(R.id.textView, "${ui.title}\n${ui.text}")
+                root.setOnClickPendingIntent(R.id.button, intentAddTime)
+                setContent(root)
+            }.build()
+    }
+
+    fun startForeground(service: Service) {
+        service.startForeground(notificationId, makeNotification(mapUi(dataDay.value)))
+    }
+
+    suspend fun run() {
+        try {
+            dataDay.map { mapUi(it) }.distinctUntilChanged().collect { ui ->
+                if (ActivityCompat.checkSelfPermission(
+                        context, Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    manager.notify(notificationId, makeNotification(ui))
+                }
             }
+        } finally {
+            manager.cancel(notificationId)
         }
-    } finally {
-        manager.cancel(notificationId)
     }
 }

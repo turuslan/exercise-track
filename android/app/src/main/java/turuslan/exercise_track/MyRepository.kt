@@ -51,6 +51,8 @@ class MyRepository @Inject constructor(
 
     private val eventTimeAdded = MutableSharedFlow<TimesByDevice>()
 
+    val notification = MyNotification(context, dataDay)
+
     init {
         jobs = listOf(
             scope.launch {
@@ -81,8 +83,9 @@ class MyRepository @Inject constructor(
             },
             scope.launch { eventTimeAdded.collect { readTimes() } },
             scope.launch { devicesMutex.withLock { readDevices() } },
-            scope.launch { runNotification(context, dataDay) },
+            scope.launch { notification.run() },
         )
+        context.startForegroundService(myServiceIntent(context))
     }
 
     private suspend fun runNetwork() {
