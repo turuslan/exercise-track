@@ -1,6 +1,9 @@
 package turuslan.exercise_track
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +89,12 @@ class MyRepository @Inject constructor(
             scope.launch { notification.run() },
         )
         context.startForegroundService(myServiceIntent(context))
+        context.registerReceiver(object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val now = timeNow()
+                mutDataDay.value = dataDay.value.copy(now = now)
+            }
+        }, IntentFilter(Intent.ACTION_SCREEN_ON))
     }
 
     private suspend fun runNetwork() {
