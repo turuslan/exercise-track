@@ -4,14 +4,14 @@
     android:layout_height="match_parent"
     android:orientation="horizontal">
 
+    <!-- <Chronometer> doesn't support HH:MM -->
     <TextView
         android:id="@+id/textView"
-        android:textSize="16sp"
-        android:fontFamily="monospace"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:text="TextView" />
+        android:fontFamily="monospace"
+        android:textSize="16sp" />
 
     <Button
         android:id="@+id/button"
