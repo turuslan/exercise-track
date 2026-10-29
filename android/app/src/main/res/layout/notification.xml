@@ -4,9 +4,8 @@
     android:layout_height="match_parent"
     android:orientation="horizontal">
 
-    <!-- <Chronometer> doesn't support HH:MM -->
-    <TextView
-        android:id="@+id/textView"
+    <Chronometer
+        android:id="@+id/chronometer"
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"

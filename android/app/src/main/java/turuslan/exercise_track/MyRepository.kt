@@ -44,6 +44,7 @@ class MyRepository @Inject constructor(
 
     private val mutDataDay = MutableStateFlow(DataDay(timeNow(), listOf()))
     val dataDay = mutDataDay.asStateFlow()
+    val dataDayUi = dataDay.mapState(scope) { it.ui() }
 
     private val mutThisDeviceUid = MutableStateFlow<DeviceUid?>(null)
     val thisDeviceUid = mutThisDeviceUid.asStateFlow()
@@ -54,7 +55,7 @@ class MyRepository @Inject constructor(
 
     private val eventTimeAdded = MutableSharedFlow<TimesByDevice>()
 
-    val notification = MyNotification(context, dataDay)
+    val notification = MyNotification(context, dataDayUi)
 
     init {
         jobs = listOf(

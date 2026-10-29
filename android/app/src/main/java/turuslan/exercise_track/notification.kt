@@ -14,13 +14,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 
 const val intentActionAddTime = "turuslan.exercise_track.ADD_TIME"
 
-class MyNotification(private val context: Context, private val dataDay: StateFlow<DataDay>) {
-    data class Ui(val count: Int, val target: Int, val title: String, val text: String)
-
+class MyNotification(private val context: Context, private val dataDay: StateFlow<DataDay.Ui>) {
     private val channelId = "notifications"
     private val notificationId = 1
     private val pendingIntentFlags =
@@ -46,34 +43,25 @@ class MyNotification(private val context: Context, private val dataDay: StateFlo
         manager.createNotificationChannel(channel)
     }
 
-    private fun mapUi(data: DataDay): Ui {
-        return Ui(
-            count = data.count,
-            target = data.target,
-            title = "${data.slash}${data.ago(", ")}",
-            text = data.bar,
-        )
-    }
-
-    private fun makeNotification(ui: Ui): Notification {
+    private fun makeNotification(ui: DataDay.Ui): Notification {
         return NotificationCompat.Builder(context, channelId).setOngoing(true)
             .setShowWhen(false)
             .setContentIntent(intentOpen)
             .setSmallIcon(R.mipmap.ic_launcher).apply {
                 val root = RemoteViews(context.packageName, R.layout.notification)
-                root.setTextViewText(R.id.textView, "${ui.title}\n${ui.text}")
+                root.setChronometer(R.id.chronometer, ui.base, ui.format, ui.started)
                 root.setOnClickPendingIntent(R.id.button, intentAddTime)
                 setContent(root)
             }.build()
     }
 
     fun startForeground(service: Service) {
-        service.startForeground(notificationId, makeNotification(mapUi(dataDay.value)))
+        service.startForeground(notificationId, makeNotification(dataDay.value))
     }
 
     suspend fun run() {
         try {
-            dataDay.map { mapUi(it) }.distinctUntilChanged().collect { ui ->
+            dataDay.collect { ui ->
                 if (ActivityCompat.checkSelfPermission(
                         context, Manifest.permission.POST_NOTIFICATIONS
                     ) == PackageManager.PERMISSION_GRANTED

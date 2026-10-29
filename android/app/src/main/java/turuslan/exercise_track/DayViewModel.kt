@@ -10,7 +10,7 @@ class DayViewModel @Inject constructor(
     val repository: MyRepository,
     application: Application,
 ) : AndroidViewModel(application) {
-    val dataDay = repository.dataDay
+    val dataDayUi = repository.dataDayUi
 
     fun tryAddTime() {
         repository.tryAddTime()

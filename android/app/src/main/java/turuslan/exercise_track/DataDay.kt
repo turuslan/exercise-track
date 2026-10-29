@@ -1,5 +1,6 @@
 package turuslan.exercise_track
 
+import android.os.SystemClock
 import kotlin.math.max
 import kotlin.math.min
 
@@ -32,5 +33,17 @@ data class DataDay(
 
     fun shouldChange(time: Time): Boolean {
         return time in min..max && !times.contains(time)
+    }
+
+    data class Ui(val last: Long?, val format: String) {
+        val base
+            get() = last?.let { SystemClock.elapsedRealtime() + it - System.currentTimeMillis() }
+                ?: 0
+        val started get() = last != null
+    }
+
+    fun ui(): Ui {
+        val ago = last?.let { ", %s" } ?: ""
+        return Ui(last, "$slash$ago\n$bar")
     }
 }
