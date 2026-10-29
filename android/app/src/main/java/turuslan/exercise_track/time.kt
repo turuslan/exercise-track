@@ -70,7 +70,6 @@ fun addDays(time: Time, n: Long): Time {
 interface TimeScale {
     fun getGroup(time: Time): Time
     fun nextGroup(time: Time): Time
-    fun nextTick(time: Time): Time
     fun ago(time1: Time, time2: Time): String
 }
 
@@ -81,10 +80,6 @@ val time_scale_debug = object : TimeScale {
 
     override fun nextGroup(time: Time): Time {
         return addMinutes(getGroup(time), 1)
-    }
-
-    override fun nextTick(time: Time): Time {
-        return addSeconds(startOfSecond(time), 1)
     }
 
     override fun ago(
@@ -101,10 +96,6 @@ val time_scale_real = object : TimeScale {
 
     override fun nextGroup(time: Time): Time {
         return addDays(getGroup(time), 1)
-    }
-
-    override fun nextTick(time: Time): Time {
-        return addSeconds(startOfSecond(time), 1)
     }
 
     override fun ago(

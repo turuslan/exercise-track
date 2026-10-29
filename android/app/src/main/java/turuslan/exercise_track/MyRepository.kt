@@ -79,7 +79,8 @@ class MyRepository @Inject constructor(
                 while (true) {
                     val now = timeNow()
                     mutDataDay.value = dataDay.value.copy(now = now)
-                    delay((time_scale.nextTick(now) - now).milliseconds)
+                    // TODO: AlarmManager
+                    delay((time_scale.nextGroup(now) - now).milliseconds)
                 }
             },
             scope.launch {
