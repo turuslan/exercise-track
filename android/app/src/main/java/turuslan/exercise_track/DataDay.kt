@@ -20,7 +20,6 @@ data class DataDay(
     val bar3 get() = "+".repeat(max(count - target, 0))
     val slash get() = "$count/$target"
     val bar get() = "[${bar1}${bar2}${bar3}]"
-    fun ago(prefix: String) = last?.let { "${prefix}${time_scale.ago(it, now)}" } ?: ""
 
     fun mayAdd(): Time? {
         val time = timeNow()
