@@ -13,15 +13,15 @@ import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 
 const val intentActionAddTime = "turuslan.exercise_track.ADD_TIME"
+
+const val pendingIntentFlags =
+    PendingIntent.FLAG_IMMUTABLE + PendingIntent.FLAG_UPDATE_CURRENT
 
 class MyNotification(private val context: Context, private val dataDay: StateFlow<DataDay.Ui>) {
     private val channelId = "notifications"
     private val notificationId = 1
-    private val pendingIntentFlags =
-        PendingIntent.FLAG_IMMUTABLE + PendingIntent.FLAG_UPDATE_CURRENT
     private val intentOpen = PendingIntent.getActivity(
         context,
         1,

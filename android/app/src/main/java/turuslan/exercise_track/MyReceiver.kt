@@ -16,5 +16,9 @@ class MyReceiver : BroadcastReceiver() {
             repository.tryAddTime()
             return
         }
+        if (intent.action == intentActionAlarm) {
+            repository.updateDataDay()
+            return
+        }
     }
 }

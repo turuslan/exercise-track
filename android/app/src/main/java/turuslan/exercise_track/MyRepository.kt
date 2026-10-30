@@ -1,9 +1,12 @@
 package turuslan.exercise_track
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -11,12 +14,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -24,7 +24,8 @@ import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.system.exitProcess
-import kotlin.time.Duration.Companion.milliseconds
+
+const val intentActionAlarm = "turuslan.exercise_track.ALARM"
 
 // This repository does lots of work, because neither activity nor view-model live as long
 // as required for foreground service and notification.
@@ -57,7 +58,11 @@ class MyRepository @Inject constructor(
 
     val notification = MyNotification(context, dataDayUi)
 
+    val alarmManager by lazy { context.getSystemService(Context.ALARM_SERVICE) as AlarmManager }
+    var alarm: Long? = null
+
     init {
+        updateDataDay()
         jobs = listOf(
             scope.launch {
                 var job: Job? = null
@@ -76,15 +81,7 @@ class MyRepository @Inject constructor(
             scope.launch { mutThisDeviceUid.value = db.ready.await().thisDeviceUid() },
             scope.launch { mutEnableNetwork.value = db.ready.await().networkEnabled() ?: false },
             scope.launch {
-                while (true) {
-                    val now = timeNow()
-                    mutDataDay.value = dataDay.value.copy(now = now)
-                    // TODO: AlarmManager
-                    delay((time_scale.nextGroup(now) - now).milliseconds)
-                }
-            },
-            scope.launch {
-                dataDay.map { Pair(it.min, it.max) }.distinctUntilChanged().collect { readTimes() }
+                dataDay.mapState(scope) { Pair(it.min, it.max) }.collect { readTimes() }
             },
             scope.launch { eventTimeAdded.collect { readTimes() } },
             scope.launch { devicesMutex.withLock { readDevices() } },
@@ -97,6 +94,27 @@ class MyRepository @Inject constructor(
                 mutDataDay.value = dataDay.value.copy(now = now)
             }
         }, IntentFilter(Intent.ACTION_SCREEN_ON))
+    }
+
+    fun updateDataDay() {
+        val now = timeNow()
+        mutDataDay.value = dataDay.value.copy(now = now)
+        val next = time_scale.nextGroup(now)
+        if (alarm != next) {
+            alarm = next
+            val type = AlarmManager.RTC
+            val intent = PendingIntent.getBroadcast(
+                context,
+                3,
+                Intent(intentActionAlarm, null, context, MyReceiver::class.java),
+                pendingIntentFlags
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+                alarmManager.set(type, next, intent)
+            } else {
+                alarmManager.setExact(type, next, intent)
+            }
+        }
     }
 
     private suspend fun runNetwork() {
@@ -115,10 +133,9 @@ class MyRepository @Inject constructor(
     }
 
     private suspend fun readTimes() {
-        val times =
-            db.ready.await()
-                .selectTimeRange(dataDay.value.min, dataDay.value.max, null).values.flatten()
-                .sorted()
+        updateDataDay()
+        val times = db.ready.await()
+            .selectTimeRange(dataDay.value.min, dataDay.value.max, null).values.flatten().sorted()
         mutDataDay.value = dataDay.value.copy(times = times)
     }
 
