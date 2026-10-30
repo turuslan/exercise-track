@@ -36,8 +36,8 @@ data class DataDay(
 
     data class Ui(val last: Long?, val format: String) {
         val base
-            get() = last?.let { SystemClock.elapsedRealtime() + it - System.currentTimeMillis() }
-                ?: 0
+            get() = SystemClock.elapsedRealtime() + (last?.let { it - System.currentTimeMillis() }
+                ?: 0)
         val started get() = last != null
     }
 

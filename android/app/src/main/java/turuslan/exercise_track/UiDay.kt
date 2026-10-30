@@ -28,13 +28,12 @@ fun UiDay(
             AndroidView({
                 LayoutInflater.from(it).inflate(R.layout.ui_day_chronometer, null) as Chronometer
             }, modifier = Modifier.fillMaxWidth()) {
+                it.stop()
                 // must call `setFormat` then `setBase`
                 it.format = data.format
                 it.base = data.base
                 if (data.started) {
                     it.start()
-                } else {
-                    it.stop()
                 }
             }
         }
