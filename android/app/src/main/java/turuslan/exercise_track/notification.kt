@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationChannelCompat
@@ -49,7 +50,14 @@ class MyNotification(private val context: Context, private val dataDay: StateFlo
             .setContentIntent(intentOpen)
             .setSmallIcon(R.mipmap.ic_launcher).apply {
                 val root = RemoteViews(context.packageName, R.layout.notification)
-                root.setChronometer(R.id.chronometer, ui.base, ui.format, ui.started)
+                root.setTextViewText(R.id.text1, ui.text1)
+                root.setTextViewText(R.id.text2, ui.text2)
+                if (ui.started) {
+                    root.setChronometer(R.id.chronometer, ui.base, ui.format1, true)
+                    root.setViewVisibility(R.id.chronometer, View.VISIBLE)
+                } else {
+                    root.setViewVisibility(R.id.chronometer, View.GONE)
+                }
                 root.setOnClickPendingIntent(R.id.button, intentAddTime)
                 setContent(root)
             }.build()

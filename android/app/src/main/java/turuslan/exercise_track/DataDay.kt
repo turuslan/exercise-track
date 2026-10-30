@@ -34,15 +34,20 @@ data class DataDay(
         return time in min..max && !times.contains(time)
     }
 
-    data class Ui(val last: Long?, val format: String) {
+    data class Ui(val last: Long?, val text1: String, val format1: String, val text2: String) {
         val base
             get() = SystemClock.elapsedRealtime() + (last?.let { it - System.currentTimeMillis() }
                 ?: 0)
+        val format get() = "$text1$format1\n$text2"
         val started get() = last != null
     }
 
     fun ui(): Ui {
-        val ago = last?.let { ", %s" } ?: ""
-        return Ui(last, "$slash$ago\n$bar")
+        return Ui(
+            last,
+            slash,
+            last?.let { ", %s" } ?: "",
+            bar,
+        )
     }
 }

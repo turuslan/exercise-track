@@ -18,7 +18,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 fun UiDay(
     modifier: Modifier = Modifier, vm: DayViewModel = hiltViewModel()
 ) {
-    val fontSize = 32.sp
     val data = vm.dataDayUi.collectAsState().value
     Column(modifier = modifier) {
         Button(
